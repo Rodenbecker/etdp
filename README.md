@@ -26,8 +26,9 @@ An intelligent, full-stack educational and vocational training management platfo
 
 ## Web Presentation & Documentation
 
-- **Plain Simple Website**: A clean, accessible, lightweight website is included in [`index.html`](./index.html) at the root of the repository.
-- **GitHub Pages Ready**: Because this repository's branch is `etd.github.io`, pushing to GitHub allows instant hosting on GitHub Pages at `https://ongalali.github.io/etdp` or `https://etd.github.io`.
+- **Live Combined Website**: [https://rodenbecker.github.io/etdp/](https://rodenbecker.github.io/etdp/)
+- **Plain Simple Website**: A clean, accessible, lightweight website is included in [`index.html`](./index.html) showcasing both the ETDP learning platform and the Word APA 7 Assistant with all 17 delivered learning products.
+- **Word APA 7 Assistant Repository**: [https://github.com/Rodenbecker/word-addin-apa-assistant](https://github.com/Rodenbecker/word-addin-apa-assistant)
 
 ## Quick Start & Distribution
 
@@ -51,7 +52,8 @@ publish_distribution.bat
 ```
 Output will be generated in `distribution\etdp_server\`.
 
-## Repository
+## Repositories
 
-- Remote: `https://github.com/ONGALALI/etdp.git`
-- Settings: `https://github.com/ONGALALI/etdp/settings`
+- ETDP Suite Platform: [https://github.com/Rodenbecker/etdp](https://github.com/Rodenbecker/etdp)
+- Word APA 7 Assistant: [https://github.com/Rodenbecker/word-addin-apa-assistant](https://github.com/Rodenbecker/word-addin-apa-assistant)
+- Live GitHub Pages Website: [https://rodenbecker.github.io/etdp/](https://rodenbecker.github.io/etdp/)

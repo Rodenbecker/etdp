@@ -79,7 +79,7 @@ Desktop.ini
 _tmp*
 
 
-# Proprietary products and commercial documents (NEVER COMMIT)
-Products/
-**/Products/
-*.docx
+# Proprietary commercial documents (NEVER COMMIT)
+US115753*
+**/US115753*
+*US115753*
