@@ -13,11 +13,11 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace ETD.Api.Services
 {
-    public sealed class CodexContinuityService : BackgroundService
+    public class GeminiContinuityService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IWebHostEnvironment _environment;
-        private readonly ILogger<CodexContinuityService> _logger;
+        private readonly ILogger<GeminiContinuityService> _logger;
         private readonly IDataProtector _protector;
         private readonly SemaphoreSlim _refreshLock = new(1, 1);
         private readonly object _statusLock = new();
@@ -81,16 +81,16 @@ namespace ETD.Api.Services
             public string Action { get; set; } = string.Empty;
         }
 
-        public CodexContinuityService(
+        public GeminiContinuityService(
             IServiceScopeFactory scopeFactory,
             IWebHostEnvironment environment,
             IDataProtectionProvider dataProtectionProvider,
-            ILogger<CodexContinuityService> logger)
+            ILogger<GeminiContinuityService> logger)
         {
             _scopeFactory = scopeFactory;
             _environment = environment;
             _logger = logger;
-            _protector = dataProtectionProvider.CreateProtector("ETDP.CodexContinuity.v1");
+            _protector = dataProtectionProvider.CreateProtector("ETDP.GeminiContinuity.v1");
         }
 
         public ContinuityStatus GetStatus()
@@ -142,10 +142,13 @@ namespace ETD.Api.Services
                 var snapshot = await BuildSnapshotAsync(reason, cancellationToken);
                 snapshot.GeneratedAtUtc = now;
 
-                var jsonPath = Path.Combine(rootPath, "codex-continuity-latest.json");
-                var markdownPath = Path.Combine(rootPath, "codex-continuity-latest.md");
-                var encryptedPath = Path.Combine(rootPath, "codex-continuity-latest.protected.txt");
-                var ledgerPath = Path.Combine(rootPath, "codex-continuity-ledger.jsonl");
+                var jsonPath = Path.Combine(rootPath, "gemini-continuity-latest.json");
+                var markdownPath = Path.Combine(rootPath, "gemini-continuity-latest.md");
+                var encryptedPath = Path.Combine(rootPath, "gemini-continuity-latest.protected.txt");
+                var ledgerPath = Path.Combine(rootPath, "gemini-continuity-ledger.jsonl");
+
+                var legacyJsonPath = Path.Combine(rootPath, "codex-continuity-latest.json");
+                var legacyMarkdownPath = Path.Combine(rootPath, "codex-continuity-latest.md");
 
                 var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
                 {
@@ -157,6 +160,14 @@ namespace ETD.Api.Services
                 File.WriteAllText(jsonPath, json, Encoding.UTF8);
                 File.WriteAllText(markdownPath, markdown, Encoding.UTF8);
                 File.WriteAllText(encryptedPath, encrypted, Encoding.UTF8);
+
+                // Keep legacy files synchronized for backward compatibility
+                try
+                {
+                    File.WriteAllText(legacyJsonPath, json, Encoding.UTF8);
+                    File.WriteAllText(legacyMarkdownPath, markdown, Encoding.UTF8);
+                }
+                catch { }
 
                 var ledgerEntry = new ContinuityLedgerEntry
                 {
@@ -201,7 +212,7 @@ namespace ETD.Api.Services
                     _status.LastErrorAtUtc = DateTime.UtcNow;
                     _status.LastReason = reason;
                 }
-                _logger.LogWarning(ex, "Failed to refresh Codex continuity log.");
+                _logger.LogWarning(ex, "Failed to refresh Gemini continuity log.");
                 return GetStatus();
             }
             finally
@@ -212,19 +223,20 @@ namespace ETD.Api.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var intervalMinutes = GetIntEnv("CODEX_CONTINUITY_INTERVAL_MINUTES", 360, 15, 1440);
+            var intervalMinutes = GetIntEnv("GEMINI_CONTINUITY_INTERVAL_MINUTES",
+                GetIntEnv("CODEX_CONTINUITY_INTERVAL_MINUTES", 360, 15, 1440), 15, 1440);
             lock (_statusLock)
             {
-                _status.Enabled = GetBoolEnv("CODEX_CONTINUITY_ENABLED", true);
+                _status.Enabled = GetBoolEnv("GEMINI_CONTINUITY_ENABLED", GetBoolEnv("CODEX_CONTINUITY_ENABLED", true));
                 _status.RefreshIntervalMinutes = intervalMinutes;
                 _status.RootPath = ResolveContinuityRootPath();
-                _status.LatestMarkdownPath = Path.Combine(_status.RootPath, "codex-continuity-latest.md");
-                _status.LatestJsonPath = Path.Combine(_status.RootPath, "codex-continuity-latest.json");
-                _status.LatestEncryptedPath = Path.Combine(_status.RootPath, "codex-continuity-latest.protected.txt");
-                _status.LedgerPath = Path.Combine(_status.RootPath, "codex-continuity-ledger.jsonl");
+                _status.LatestMarkdownPath = Path.Combine(_status.RootPath, "gemini-continuity-latest.md");
+                _status.LatestJsonPath = Path.Combine(_status.RootPath, "gemini-continuity-latest.json");
+                _status.LatestEncryptedPath = Path.Combine(_status.RootPath, "gemini-continuity-latest.protected.txt");
+                _status.LedgerPath = Path.Combine(_status.RootPath, "gemini-continuity-ledger.jsonl");
             }
 
-            if (!GetBoolEnv("CODEX_CONTINUITY_ENABLED", true))
+            if (!_status.Enabled)
             {
                 return;
             }
@@ -244,7 +256,7 @@ namespace ETD.Api.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Scheduled Codex continuity refresh failed.");
+                    _logger.LogWarning(ex, "Scheduled Gemini continuity refresh failed.");
                 }
             }
         }
@@ -298,16 +310,28 @@ namespace ETD.Api.Services
                         var attrs = method.GetCustomAttributes()
                             .OfType<HttpMethodAttribute>()
                             .ToList();
-                        if (attrs.Count == 0) return Enumerable.Empty<EndpointSummary>();
+                        if (attrs.Count == 0)
+                        {
+                            return new[]
+                            {
+                                new EndpointSummary
+                                {
+                                    Method = "UNKNOWN",
+                                    Route = string.Empty,
+                                    Action = method.Name
+                                }
+                            };
+                        }
+
                         return attrs.Select(attr => new EndpointSummary
                         {
-                            Method = string.Join(",", attr.HttpMethods ?? new List<string> { "GET" }),
-                            Route = string.IsNullOrWhiteSpace(attr.Template) ? routeBase : $"{routeBase}/{attr.Template}",
+                            Method = attr.HttpMethods.FirstOrDefault() ?? "ANY",
+                            Route = attr.Template ?? string.Empty,
                             Action = method.Name
                         });
                     })
-                    .OrderBy(x => x.Route, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(x => x.Method, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(e => e.Method, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(e => e.Route, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
                 endpointCount += endpoints.Count;
@@ -320,30 +344,29 @@ namespace ETD.Api.Services
                 });
             }
 
-            var services = serviceTypes
-                .Select(type =>
-                {
-                    var constructor = type.GetConstructors()
-                        .OrderByDescending(c => c.GetParameters().Length)
-                        .FirstOrDefault();
-                    var dependencies = constructor == null
-                        ? new List<string>()
-                        : constructor.GetParameters()
-                            .Select(p => p.ParameterType.Name)
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                            .ToList();
-                    return new
-                    {
-                        Name = type.Name,
-                        Dependencies = dependencies
-                    };
-                })
-                .Cast<object>()
-                .ToList();
+            var services = serviceTypes.Select(type =>
+            {
+                var constructor = type.GetConstructors()
+                    .OrderByDescending(c => c.GetParameters().Length)
+                    .FirstOrDefault();
+                var dependencies = constructor == null
+                    ? new List<string>()
+                    : constructor.GetParameters()
+                        .Select(p => p.ParameterType.Name)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
 
-            var dbSets = typeof(ApplicationDbContext)
-                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                return (object)new
+                {
+                    Name = type.Name,
+                    IsHosted = typeof(IHostedService).IsAssignableFrom(type),
+                    Dependencies = dependencies
+                };
+            }).ToList();
+
+            var dbSetNames = typeof(ApplicationDbContext)
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.PropertyType.IsGenericType &&
                             p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
                 .Select(p => p.Name)
@@ -352,138 +375,164 @@ namespace ETD.Api.Services
 
             var dataOverview = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Controllers"] = controllers.Count,
-                ["Services"] = services.Count,
+                ["Controllers"] = controllerTypes.Count,
+                ["Services"] = serviceTypes.Count,
                 ["Models"] = modelTypes.Count,
                 ["Endpoints"] = endpointCount,
-                ["DbSets"] = dbSets.Count
+                ["DbSets"] = dbSetNames.Count
             };
 
-            using (var scope = _scopeFactory.CreateScope())
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetService<ApplicationDbContext>();
+            if (db != null)
             {
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                dataOverview["Qualifications"] = await db.Qualifications.CountAsync(cancellationToken);
-                dataOverview["Subjects"] = await db.Subjects.CountAsync(cancellationToken);
-                dataOverview["Topics"] = await db.Topics.CountAsync(cancellationToken);
-                dataOverview["SourceMaterials"] = await db.SourceMaterials.CountAsync(cancellationToken);
-                dataOverview["KnowledgeDeveloper"] = await db.SourceMaterials.CountAsync(
-                    x => (x.KnowledgeSourceType ?? string.Empty) == "developer_knowledge_base",
-                    cancellationToken);
+                try
+                {
+                    dataOverview["Qualifications"] = await db.Qualifications.CountAsync(cancellationToken);
+                    dataOverview["Subjects"] = await db.Subjects.CountAsync(cancellationToken);
+                    dataOverview["Topics"] = await db.Topics.CountAsync(cancellationToken);
+                    dataOverview["Outcomes"] = await db.Outcomes.CountAsync(cancellationToken);
+                    dataOverview["LessonPlans"] = await db.LessonPlans.CountAsync(cancellationToken);
+                    dataOverview["AssessmentCriteria"] = await db.AssessmentCriteria.CountAsync(cancellationToken);
+                    dataOverview["SourceMaterials"] = await db.SourceMaterials.CountAsync(cancellationToken);
+                    dataOverview["LearnerGuides"] = await db.LearnerGuides.CountAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    dataOverview["DbReadError"] = 1;
+                    _logger.LogDebug(ex, "Failed reading data overview counts for Gemini continuity snapshot.");
+                }
             }
 
-            var keyFiles = BuildKeyKnowledgeFiles();
-            var recentFiles = BuildRecentCoreFileUpdates();
+            var runtime = new Dictionary<string, object>
+            {
+                ["Environment"] = _environment.EnvironmentName,
+                ["ContentRoot"] = _environment.ContentRootPath,
+                ["AiMode"] = AiRuntime.GetMode(),
+                ["GeminiConfigured"] = !string.IsNullOrWhiteSpace(Secrets.GetGoogleKey()),
+                ["LocalLlmConfigured"] = !string.IsNullOrWhiteSpace(AiRuntime.GetLocalLlmEndpoint()),
+                ["DotNetVersion"] = Environment.Version.ToString(),
+                ["MachineName"] = Environment.MachineName,
+                ["OsDescription"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription
+            };
+
+            var keyKnowledgeFiles = CollectKeyKnowledgeFiles();
+            var recentUpdates = CollectRecentCoreUpdates();
 
             return new ContinuitySnapshot
             {
                 Reason = reason,
                 ApplicationRoot = _environment.ContentRootPath,
                 WorkspaceRoot = ResolveWorkspaceRoot(_environment.ContentRootPath),
-                Runtime = new Dictionary<string, object>
-                {
-                    ["Environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown",
-                    ["MachineName"] = Environment.MachineName,
-                    ["ProcessId"] = Environment.ProcessId,
-                    ["AiMode"] = AiRuntime.GetMode(),
-                    ["LocalLibraryPath"] = AiRuntime.GetLocalLibraryPath()
-                },
+                Runtime = runtime,
                 DataOverview = dataOverview,
                 Controllers = controllers,
                 Services = services,
-                DbSets = dbSets,
-                KeyKnowledgeFiles = keyFiles,
-                RecentCoreFileUpdates = recentFiles
+                DbSets = dbSetNames,
+                KeyKnowledgeFiles = keyKnowledgeFiles,
+                RecentCoreFileUpdates = recentUpdates
             };
         }
 
-        private List<object> BuildKeyKnowledgeFiles()
+        private List<object> CollectKeyKnowledgeFiles()
         {
-            var files = new List<string>
+            var results = new List<object>();
+            var candidatePaths = new[]
             {
-                Path.Combine(_environment.ContentRootPath, "development.readme.md"),
-                Path.Combine(AiRuntime.GetLocalLibraryPath(), "KnowledgeHierarchy", "upload.readme.md"),
-                Path.Combine(_environment.ContentRootPath, "AzureAgent", "MODERATOR4_BOOTSTRAP_PROTOCOL.md"),
-                Path.Combine(_environment.ContentRootPath, "BACKEND_README.md")
+                Path.Combine(_environment.ContentRootPath, "Imports"),
+                Path.Combine(_environment.ContentRootPath, "Exports"),
+                Path.Combine(_environment.ContentRootPath, "SystemData"),
+                Path.Combine(_environment.ContentRootPath, "Google")
             };
 
-            return files
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(path => new
+            foreach (var folder in candidatePaths)
+            {
+                if (!Directory.Exists(folder)) continue;
+                try
                 {
-                    Path = path,
-                    Exists = File.Exists(path),
-                    LastWriteUtc = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : (DateTime?)null,
-                    SizeBytes = File.Exists(path) ? new FileInfo(path).Length : 0
-                })
-                .Cast<object>()
-                .ToList();
-        }
-
-        private List<object> BuildRecentCoreFileUpdates()
-        {
-            var roots = new[]
-            {
-                Path.Combine(_environment.ContentRootPath, "Controllers"),
-                Path.Combine(_environment.ContentRootPath, "Services"),
-                Path.Combine(_environment.ContentRootPath, "Models"),
-                Path.Combine(_environment.ContentRootPath, "frontend", "src")
-            };
-
-            var files = new List<FileInfo>();
-            foreach (var root in roots.Where(Directory.Exists))
-            {
-                files.AddRange(Directory.GetFiles(root, "*.*", SearchOption.AllDirectories)
-                    .Where(path =>
+                    var files = Directory.GetFiles(folder, "*.*", SearchOption.TopDirectoryOnly)
+                        .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                        .Take(25);
+                    foreach (var file in files)
                     {
-                        var ext = Path.GetExtension(path).ToLowerInvariant();
-                        return ext == ".cs" || ext == ".jsx" || ext == ".js" || ext == ".ts" || ext == ".tsx" || ext == ".md";
-                    })
-                    .Select(path => new FileInfo(path)));
+                        var info = new FileInfo(file);
+                        results.Add(new
+                        {
+                            Path = file,
+                            Name = info.Name,
+                            Length = info.Length,
+                            LastWriteTimeUtc = info.LastWriteTimeUtc
+                        });
+                    }
+                }
+                catch { }
             }
 
-            return files
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .Take(120)
-                .Select(f => new
+            return results;
+        }
+
+        private List<object> CollectRecentCoreUpdates()
+        {
+            var results = new List<object>();
+            var targets = new[] { "Controllers", "Services", "Models", "Utils", "Data" };
+            foreach (var target in targets)
+            {
+                var dir = Path.Combine(_environment.ContentRootPath, target);
+                if (!Directory.Exists(dir)) continue;
+
+                try
                 {
-                    Path = f.FullName,
-                    LastWriteUtc = f.LastWriteTimeUtc,
-                    SizeBytes = f.Length
-                })
-                .Cast<object>()
-                .ToList();
+                    var files = Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories)
+                        .Select(f => new FileInfo(f))
+                        .OrderByDescending(f => f.LastWriteTimeUtc)
+                        .Take(6);
+                    foreach (var file in files)
+                    {
+                        results.Add(new
+                        {
+                            Area = target,
+                            Name = file.Name,
+                            LastWriteTimeUtc = file.LastWriteTimeUtc,
+                            Length = file.Length
+                        });
+                    }
+                }
+                catch { }
+            }
+
+            return results;
         }
 
         private static string BuildMarkdown(ContinuitySnapshot snapshot)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("# Codex Continuity Log");
+            sb.AppendLine("# Google Gemini & Antigravity Continuity Log");
             sb.AppendLine();
-            sb.AppendLine($"Generated (UTC): {snapshot.GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"Reason: {snapshot.Reason}");
-            sb.AppendLine($"Application Root: {snapshot.ApplicationRoot}");
-            sb.AppendLine($"Workspace Root: {snapshot.WorkspaceRoot}");
+            sb.AppendLine($"- **Generated At (UTC):** {snapshot.GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"- **Reason:** {snapshot.Reason}");
+            sb.AppendLine($"- **Application Root:** `{snapshot.ApplicationRoot}`");
+            sb.AppendLine($"- **Workspace Root:** `{snapshot.WorkspaceRoot}`");
             sb.AppendLine();
 
-            sb.AppendLine("## Runtime");
+            sb.AppendLine("## Runtime Status");
             sb.AppendLine();
-            foreach (var kv in snapshot.Runtime.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            foreach (var kvp in snapshot.Runtime)
             {
-                sb.AppendLine($"- {kv.Key}: {kv.Value}");
+                sb.AppendLine($"- **{kvp.Key}:** {kvp.Value}");
             }
             sb.AppendLine();
 
             sb.AppendLine("## Data Overview");
             sb.AppendLine();
-            foreach (var kv in snapshot.DataOverview.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            foreach (var kvp in snapshot.DataOverview)
             {
-                sb.AppendLine($"- {kv.Key}: {kv.Value}");
+                sb.AppendLine($"- **{kvp.Key}:** {kvp.Value}");
             }
             sb.AppendLine();
 
-            sb.AppendLine("## Controllers and Routes");
+            sb.AppendLine("## Controllers");
             sb.AppendLine();
-            foreach (var controller in snapshot.Controllers.Take(80))
+            foreach (var controller in snapshot.Controllers)
             {
                 var json = JsonSerializer.Serialize(controller);
                 sb.AppendLine($"- {json}");
@@ -492,7 +541,7 @@ namespace ETD.Api.Services
 
             sb.AppendLine("## Services");
             sb.AppendLine();
-            foreach (var service in snapshot.Services.Take(120))
+            foreach (var service in snapshot.Services)
             {
                 var json = JsonSerializer.Serialize(service);
                 sb.AppendLine($"- {json}");
@@ -529,12 +578,13 @@ namespace ETD.Api.Services
 
         private string ResolveContinuityRootPath()
         {
-            var configured = (Environment.GetEnvironmentVariable("CODEX_CONTINUITY_PATH") ?? string.Empty).Trim();
+            var configured = (Environment.GetEnvironmentVariable("GEMINI_CONTINUITY_PATH") ??
+                              Environment.GetEnvironmentVariable("CODEX_CONTINUITY_PATH") ?? string.Empty).Trim();
             if (!string.IsNullOrWhiteSpace(configured))
             {
                 return configured;
             }
-            return Path.Combine(_environment.ContentRootPath, "SystemData", "CodexContinuity");
+            return Path.Combine(_environment.ContentRootPath, "SystemData", "GeminiContinuity");
         }
 
         private static string ResolveWorkspaceRoot(string contentRoot)
@@ -567,6 +617,19 @@ namespace ETD.Api.Services
             if (parsed < min) return min;
             if (parsed > max) return max;
             return parsed;
+        }
+    }
+
+    // Backward-compatible alias for existing DI registrations
+    public sealed class CodexContinuityService : GeminiContinuityService
+    {
+        public CodexContinuityService(
+            IServiceScopeFactory scopeFactory,
+            IWebHostEnvironment environment,
+            IDataProtectionProvider dataProtectionProvider,
+            ILogger<GeminiContinuityService> logger)
+            : base(scopeFactory, environment, dataProtectionProvider, logger)
+        {
         }
     }
 }

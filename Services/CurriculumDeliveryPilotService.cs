@@ -2288,6 +2288,15 @@ namespace ETD.Api.Services
                 return compiled;
             }
 
+            if (AiRuntime.AllowGoogle())
+            {
+                var geminiContent = await TryBuildGeminiLessonContentAsync(map, compiled, cancellationToken);
+                if (HasComprehensiveLearnerGuideContent(geminiContent))
+                {
+                    return NormalizeGeneratedLessonDraftContent(geminiContent);
+                }
+            }
+
             var webContent = await TryBuildOpenAiSearchLessonContentAsync(map, compiled, cancellationToken);
             if (HasComprehensiveLearnerGuideContent(webContent))
             {
@@ -2348,6 +2357,61 @@ namespace ETD.Api.Services
             }
 
             return CleanGeneratedText(sb.ToString());
+        }
+
+        private async Task<string> TryBuildGeminiLessonContentAsync(
+            CriteriaSourceMapItem map,
+            string localDraft,
+            CancellationToken cancellationToken)
+        {
+            if (!AiRuntime.AllowGoogle())
+            {
+                return string.Empty;
+            }
+
+            var prompt = BuildGeminiLessonPrompt(map, localDraft);
+            try
+            {
+                var text = await GoogleGeminiClient.GenerateContentAsync(prompt, AiRuntime.GetGeminiModel());
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text.Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Google Gemini learner-guide lesson synthesis failed for criteria {CriteriaId}.", map.CriteriaId);
+            }
+
+            return string.Empty;
+        }
+
+        private static string BuildGeminiLessonPrompt(CriteriaSourceMapItem map, string localDraft)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("You are an expert South African vocational curriculum author creating official TVET courseware.");
+            sb.AppendLine("Your goal is to write a comprehensive, rigorous, publication-grade Learner Guide chapter section for South African TVET colleges.");
+            sb.AppendLine("The content must be perfectly aligned with the Quality Council for Trades and Occupations (QCTO) Curriculum and Assessment Specifications.");
+            sb.AppendLine();
+            sb.AppendLine($"Subject: {NormalizeSentence(map.SubjectDescription)} ({map.SubjectCode})");
+            sb.AppendLine($"Topic: {NormalizeSentence(map.TopicDescription)} ({map.TopicCode})");
+            sb.AppendLine($"Assessment Criteria to Satisfy: {NormalizeSentence(map.CriteriaDescription)}");
+            sb.AppendLine();
+            sb.AppendLine("Pedagogical Requirements:");
+            sb.AppendLine("1. Write full, publication-ready educational prose suitable for TVET learners. Do not use generic filler or study recommendations.");
+            sb.AppendLine("2. Directly explain the theoretical concepts, core scientific/technical principles, terminology, and operational standards.");
+            sb.AppendLine("3. Provide clear step-by-step procedures, tool usage, safety precautions (OHSA standards), and practical workshop guidelines.");
+            sb.AppendLine("4. Explicitly explain what constitutes competent performance to meet the QCTO Assessment Criteria.");
+            sb.AppendLine("5. Include 2-3 formative self-check questions with answers for student revision at the end of the section.");
+            sb.AppendLine();
+            if (!string.IsNullOrWhiteSpace(localDraft))
+            {
+                sb.AppendLine("Extracted Technical Evidence from Uploaded College Source Material:");
+                sb.AppendLine(localDraft);
+                sb.AppendLine();
+            }
+            sb.AppendLine("Now synthesize and write the complete, learner-facing textbook section:");
+            return sb.ToString();
         }
 
         private async Task<string> TryBuildOpenAiSearchLessonContentAsync(

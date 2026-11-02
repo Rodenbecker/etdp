@@ -254,33 +254,6 @@
   width: min(1180px, calc(100% - 1.8rem));
 }
 
-.codex-attribution-note {
-  width: calc(100% - 1.8rem);
-  margin: 0;
-  padding: 0.9rem 1rem;
-  border: 1px solid #d6c897;
-  border-left: 5px solid #9f7e1f;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #fffdf5 0%, #fff9e8 100%);
-  color: #3d2f0f;
-}
-
-.codex-attribution-note h3 {
-  margin: 0 0 0.45rem 0;
-  font-size: 0.98rem;
-  color: #6a5112;
-}
-
-.codex-attribution-note p {
-  margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-
-.codex-attribution-note p + p {
-  margin-top: 0.38rem;
-}
-
 /* Responsive */
 @media (max-width: 1240px) {
   .workflow-grid {
@@ -354,10 +327,6 @@
 
   .dashboard-content > .page-container,
   .dashboard-content > .mainpage-root {
-    width: calc(100% - 0.9rem);
-  }
-
-  .codex-attribution-note {
     width: calc(100% - 0.9rem);
   }
 

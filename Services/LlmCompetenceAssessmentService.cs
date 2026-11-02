@@ -235,6 +235,19 @@ namespace ETD.Api.Services
                 attempts.Add(local.ErrorMessage);
             }
 
+            if (AiRuntime.AllowGoogle())
+            {
+                try
+                {
+                    var googleAnswer = await GoogleGeminiClient.GenerateContentAsync(prompt, ct: ct);
+                    if (!string.IsNullOrWhiteSpace(googleAnswer))
+                    {
+                        return new LlmAnswerResult { Source = $"gemini:{AiRuntime.GetGeminiModel()}", Answer = googleAnswer.Trim() };
+                    }
+                }
+                catch { }
+            }
+
             var openAiKey = Secrets.GetOpenAIKey();
             if (AiRuntime.AllowOpenAi() && !string.IsNullOrWhiteSpace(openAiKey))
             {

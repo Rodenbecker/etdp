@@ -19,7 +19,7 @@ namespace ETD.Api.Services
             _enabled = ResolveEnabledFlag();
             _model = (Environment.GetEnvironmentVariable("SK_OPENAI_MODEL")
                 ?? Environment.GetEnvironmentVariable("OPENAI_MODEL")
-                ?? "gpt-5-mini").Trim();
+                ?? "gemini-3.8-flash").Trim();
 
             if (!_enabled)
             {
@@ -46,7 +46,7 @@ namespace ETD.Api.Services
                 var builder = Kernel.CreateBuilder();
                 if (!string.IsNullOrWhiteSpace(localEndpoint))
                 {
-                    // Use local LLM (Qwen, etc.) via OpenAI-compatible endpoint
+                    // Use local LLM (Gemma, etc.) via OpenAI-compatible endpoint
                     builder.AddOpenAIChatCompletion(
                         modelId: _model,
                         apiKey: string.IsNullOrWhiteSpace(apiKey) ? "no-key" : apiKey,

@@ -148,6 +148,40 @@ namespace ETD.Api.Controllers
             public string ParaphrasedText { get; set; } = string.Empty;
         }
 
+        public class SynthesizeTextbookRequest
+        {
+            public int QualificationId { get; set; }
+            public int? SubjectId { get; set; }
+            public string? Model { get; set; } = "gemma4:26b";
+            public bool ForceRefresh { get; set; } = false;
+            public int MaxTopics { get; set; } = 100;
+        }
+
+        public class SynthesizeTextbookResult
+        {
+            public bool Success { get; set; }
+            public string Message { get; set; } = string.Empty;
+            public int QualificationId { get; set; }
+            public string QualificationTitle { get; set; } = string.Empty;
+            public int SubjectsProcessed { get; set; }
+            public int TopicsProcessed { get; set; }
+            public int CriteriaProcessed { get; set; }
+            public int WordsGenerated { get; set; }
+            public string ModelUsed { get; set; } = string.Empty;
+            public List<SynthesizedTopicSummary> Details { get; set; } = new();
+        }
+
+        public class SynthesizedTopicSummary
+        {
+            public string SubjectCode { get; set; } = string.Empty;
+            public string TopicCode { get; set; } = string.Empty;
+            public string TopicTitle { get; set; } = string.Empty;
+            public int CriteriaCount { get; set; }
+            public int WordCount { get; set; }
+            public string Model { get; set; } = string.Empty;
+            public bool Success { get; set; }
+        }
+
         [HttpPost("paraphrase")]
         public async Task<IActionResult> Paraphrase([FromBody] ParaphraseRequest req)
         {
@@ -363,6 +397,255 @@ namespace ETD.Api.Controllers
                 total = file.Entries.Count,
                 cachePath = GetParaphraseCachePath(qualification.Id)
             });
+        }
+
+        [HttpGet("synthesis-status")]
+        public IActionResult GetSynthesisStatus([FromQuery] int? qualificationId = null, [FromQuery] int? subjectId = null)
+        {
+            var qualification = qualificationId.HasValue && qualificationId.Value > 0
+                ? _context.Qualifications.FirstOrDefault(q => q.Id == qualificationId.Value)
+                : _context.Qualifications.FirstOrDefault();
+
+            if (qualification == null) return NotFound(new { error = "Qualification not found" });
+
+            var subjectsQuery = _context.Subjects.Where(s => s.QualificationId == qualification.Id);
+            if (subjectId.HasValue && subjectId.Value > 0)
+            {
+                subjectsQuery = subjectsQuery.Where(s => s.Id == subjectId.Value);
+            }
+            var subjects = subjectsQuery.ToList();
+            var subjectIds = subjects.Select(s => s.Id).ToList();
+
+            var topics = _context.Topics.Where(t => subjectIds.Contains(t.SubjectId)).ToList();
+            var topicIds = topics.Select(t => t.Id).ToList();
+            var criteria = _context.AssessmentCriteria.Where(c => topicIds.Contains(c.TopicId)).ToList();
+
+            var toolkit = _context.LecturerToolkitEntries.Where(e => e.QualificationsId == qualification.Id).ToList();
+            var synthesizedCount = 0;
+            var totalWordCount = 0;
+
+            foreach (var topic in topics)
+            {
+                var desc = (topic.TopicDescription ?? string.Empty).Trim();
+                var code = (topic.TopicCode ?? string.Empty).Trim();
+                var entry = toolkit.FirstOrDefault(e =>
+                    (!string.IsNullOrWhiteSpace(code) && e.Lpn == code) ||
+                    (!string.IsNullOrWhiteSpace(desc) && !string.IsNullOrWhiteSpace(e.LessonPlanDescription) && e.LessonPlanDescription.Contains(desc)));
+
+                if (entry != null && !string.IsNullOrWhiteSpace(entry.LessonPlanContent) && entry.LessonPlanContent.Length > 200)
+                {
+                    synthesizedCount++;
+                    totalWordCount += DocumentTextCleaner.WordCount(entry.LessonPlanContent);
+                }
+            }
+
+            var cacheFile = LoadParaphraseCacheFile(qualification.Id);
+            var cacheCount = cacheFile.Entries?.Count ?? 0;
+
+            return Ok(new
+            {
+                qualificationId = qualification.Id,
+                qualificationTitle = qualification.QualificationDescription,
+                totalSubjects = subjects.Count,
+                totalTopics = topics.Count,
+                totalCriteria = criteria.Count,
+                synthesizedTopicsCount = synthesizedCount,
+                coveragePercent = topics.Count > 0 ? Math.Round((double)synthesizedCount / topics.Count * 100, 1) : 0,
+                totalWordCount,
+                averageWordsPerTopic = synthesizedCount > 0 ? totalWordCount / synthesizedCount : 0,
+                cachedEntriesCount = cacheCount,
+                googleConfigured = AiRuntime.AllowGoogle(),
+                recommendedModel = "gemma4:26b",
+                availableModels = new[]
+                {
+                    new { id = "gemma4:26b", label = "Gemma 4:26B (Local / Ollama)", description = "Runs offline on your workstation, high-precision vocational reasoning" },
+                    new { id = "gemini-3.8-flash", label = "Google Gemini 3.8 Flash (Cloud)", description = "Fast high-speed generation directly via Google AI" },
+                    new { id = "auto", label = "Auto (Gemma 4:26B Local with Gemini Fallback)", description = "Tries Gemma 4:26B first, falls back automatically to Gemini" }
+                }
+            });
+        }
+
+        [HttpPost("synthesize-textbook")]
+        public async Task<IActionResult> SynthesizeTextbook(
+            [FromBody] SynthesizeTextbookRequest? req,
+            CancellationToken cancellationToken)
+        {
+            req ??= new SynthesizeTextbookRequest();
+            var qualification = req.QualificationId > 0
+                ? _context.Qualifications.FirstOrDefault(q => q.Id == req.QualificationId)
+                : _context.Qualifications.FirstOrDefault();
+
+            if (qualification == null)
+            {
+                return BadRequest(new { error = "No qualification found for textbook synthesis." });
+            }
+
+            var subjectsQuery = _context.Subjects.Where(s => s.QualificationId == qualification.Id);
+            if (req.SubjectId.HasValue && req.SubjectId.Value > 0)
+            {
+                subjectsQuery = subjectsQuery.Where(s => s.Id == req.SubjectId.Value);
+            }
+
+            var subjects = subjectsQuery
+                .OrderBy(s => s.CurriculumPhaseId)
+                .ThenBy(s => s.SubjectCode)
+                .ToList();
+
+            if (subjects.Count == 0)
+            {
+                return BadRequest(new { error = "No subjects found matching the criteria." });
+            }
+
+            var cacheFile = LoadParaphraseCacheFile(qualification.Id);
+            if (cacheFile.QualificationId <= 0) cacheFile.QualificationId = qualification.Id;
+            cacheFile.Entries ??= new Dictionary<string, ParaphraseCacheEntry>(StringComparer.Ordinal);
+
+            var existingToolkit = _context.LecturerToolkitEntries
+                .Where(e => e.QualificationsId == qualification.Id)
+                .ToList();
+
+            var result = new SynthesizeTextbookResult
+            {
+                QualificationId = qualification.Id,
+                QualificationTitle = qualification.QualificationDescription ?? "TVET Qualification",
+                ModelUsed = req.Model ?? "gemma4:26b",
+                Success = true
+            };
+
+            int processedTopics = 0;
+            int totalWords = 0;
+            int totalCriteriaCount = 0;
+
+            foreach (var subject in subjects)
+            {
+                result.SubjectsProcessed++;
+                var topics = _context.Topics
+                    .Where(t => t.SubjectId == subject.Id)
+                    .OrderBy(t => t.Order ?? int.MaxValue)
+                    .ThenBy(t => t.TopicCode)
+                    .ThenBy(t => t.Id)
+                    .ToList();
+
+                foreach (var topic in topics)
+                {
+                    if (processedTopics >= req.MaxTopics) break;
+
+                    var topicCode = (topic.TopicCode ?? string.Empty).Trim();
+                    var topicDesc = (topic.TopicDescription ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(topicDesc)) continue;
+
+                    var criteria = _context.AssessmentCriteria
+                        .Where(c => c.TopicId == topic.Id)
+                        .OrderBy(c => c.Id)
+                        .ToList();
+
+                    var existingEntry = existingToolkit.FirstOrDefault(e =>
+                        e.SubjectCode == subject.SubjectCode &&
+                        (e.Lpn == topicCode || (!string.IsNullOrWhiteSpace(e.LessonPlanDescription) && e.LessonPlanDescription.Contains(topicDesc))));
+
+                    bool hasRichContent = existingEntry != null &&
+                        !string.IsNullOrWhiteSpace(existingEntry.LessonPlanContent) &&
+                        existingEntry.LessonPlanContent.Length > 400 &&
+                        !existingEntry.LessonPlanContent.Contains(AutoCurriculumCoverageGapMarker);
+
+                    string synthesizedContent;
+                    string actualModelUsed;
+
+                    if (hasRichContent && !req.ForceRefresh)
+                    {
+                        synthesizedContent = existingEntry!.LessonPlanContent!;
+                        actualModelUsed = "existing_database_cached";
+                    }
+                    else
+                    {
+                        var evidence = FindTopicTradeEvidence(qualification.Id, qualification.QualificationDescription ?? "", topicDesc, topicCode);
+                        var (draft, modelTag) = await GenerateTopicTextbookSectionAsync(qualification, subject, topic, criteria, evidence, req.Model, cancellationToken);
+                        synthesizedContent = draft;
+                        actualModelUsed = modelTag;
+
+                        if (existingEntry == null)
+                        {
+                            existingEntry = new LecturerToolkitEntry
+                            {
+                                QualificationsId = qualification.Id,
+                                SubjectCode = subject.SubjectCode ?? string.Empty,
+                                SubjectDescription = subject.SubjectDescription ?? string.Empty,
+                                Lpn = !string.IsNullOrWhiteSpace(topicCode) ? topicCode : "KT01",
+                                LearningInstitutionName = qualification.LearningInstitutionName ?? "TVET College",
+                                LecturerName = qualification.SeniorLecturer ?? "Senior Trade Lecturer"
+                            };
+                            _context.LecturerToolkitEntries.Add(existingEntry);
+                            existingToolkit.Add(existingEntry);
+                        }
+
+                        existingEntry.LessonPlanDescription = topicDesc;
+                        existingEntry.LessonPlanContent = synthesizedContent;
+                        existingEntry.LecturerActions = "Demonstrate technical principles, explain OHSA standards, supervise workshop tasks.";
+                        existingEntry.LearnerActions = "Study theoretical principles, follow step-by-step procedures, complete formative self-test.";
+                        existingEntry.LearningAids = "Trade tools, PPE, schematic drawings, reference manuals, multimeter/measuring instruments.";
+
+                        foreach (var crit in criteria)
+                        {
+                            var lp = _context.LessonPlans.FirstOrDefault(p => p.AssessmentCriteriaId == crit.Id);
+                            if (lp == null)
+                            {
+                                lp = new LessonPlan
+                                {
+                                    AssessmentCriteriaId = crit.Id,
+                                    Title = topicDesc,
+                                    Date = DateTime.UtcNow,
+                                    DurationMinutes = 60
+                                };
+                                _context.LessonPlans.Add(lp);
+                            }
+                            lp.Title = topicDesc;
+                            lp.Content = synthesizedContent;
+                        }
+
+                        cacheFile.Entries[topicDesc] = new ParaphraseCacheEntry
+                        {
+                            ParaphrasedText = synthesizedContent,
+                            Backend = actualModelUsed,
+                            UpdatedAtUtc = DateTime.UtcNow
+                        };
+                        if (!string.IsNullOrWhiteSpace(topicCode))
+                        {
+                            cacheFile.Entries[$"{topicCode}: {topicDesc}"] = new ParaphraseCacheEntry
+                            {
+                                ParaphrasedText = synthesizedContent,
+                                Backend = actualModelUsed,
+                                UpdatedAtUtc = DateTime.UtcNow
+                            };
+                        }
+                    }
+
+                    int words = DocumentTextCleaner.WordCount(synthesizedContent);
+                    totalWords += words;
+                    processedTopics++;
+                    totalCriteriaCount += criteria.Count;
+
+                    result.Details.Add(new SynthesizedTopicSummary
+                    {
+                        SubjectCode = subject.SubjectCode ?? "",
+                        TopicCode = topicCode,
+                        TopicTitle = topicDesc,
+                        CriteriaCount = criteria.Count,
+                        WordCount = words,
+                        Model = actualModelUsed,
+                        Success = !string.IsNullOrWhiteSpace(synthesizedContent) && words >= 50
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            SaveParaphraseCacheFile(cacheFile);
+
+            result.TopicsProcessed = processedTopics;
+            result.CriteriaProcessed = totalCriteriaCount;
+            result.WordsGenerated = totalWords;
+            result.Message = $"Successfully synthesized {processedTopics} TVET textbook topics ({totalWords} words) aligned to QCTO standards.";
+
+            return Ok(result);
         }
 
         [HttpGet("export-readiness")]
@@ -1846,11 +2129,20 @@ namespace ETD.Api.Controllers
 
         private async Task<string?> TryParaphraseWithOpenAiAsync(string text, string style, bool preserveTerminology)
         {
+            var prompt = BuildLearnerGuideParaphrasePrompt(style, preserveTerminology);
+            if (AiRuntime.AllowGoogle())
+            {
+                try
+                {
+                    var geminiResult = await GoogleGeminiClient.GenerateContentAsync(text, systemInstruction: prompt);
+                    if (!string.IsNullOrWhiteSpace(geminiResult)) return geminiResult.Trim();
+                }
+                catch { }
+            }
             if (!AiRuntime.AllowOpenAi()) return null;
             var key = Secrets.GetOpenAIKey();
             if (string.IsNullOrWhiteSpace(key)) return null;
-            var model = AiRuntime.GetOpenAiModel("gpt-5-mini");
-            var prompt = BuildLearnerGuideParaphrasePrompt(style, preserveTerminology);
+            var model = AiRuntime.GetOpenAiModel("gemini-3.8-flash");
             var payload = new
             {
                 model,
@@ -2487,7 +2779,7 @@ namespace ETD.Api.Controllers
                     openAiAllowed &&
                     !string.IsNullOrWhiteSpace(openAiKey))
                 {
-                    var outputDir = Path.Combine("C:\\ETDP\\ETDP", "Exports", "LearnerGuide", "GeneratedImages", $"topic_{topic.Id}");
+                    var outputDir = Path.Combine(EtdpPaths.GetExportsRoot(), "LearnerGuide", "GeneratedImages", $"topic_{topic.Id}");
                     Directory.CreateDirectory(outputDir);
 
                     for (var i = 0; i < remaining; i += 1)
@@ -2709,6 +3001,18 @@ namespace ETD.Api.Controllers
             string prompt,
             CancellationToken cancellationToken)
         {
+            if (AiRuntime.AllowGoogle())
+            {
+                try
+                {
+                    var googleImage = await GoogleGeminiClient.GenerateImageAsync(prompt, cancellationToken);
+                    if (googleImage != null && googleImage.Length > 0)
+                    {
+                        return OpenAiGeneratedGuideImageResult.Success(googleImage);
+                    }
+                }
+                catch { }
+            }
             var payload = new
             {
                 model,
@@ -4305,6 +4609,167 @@ namespace ETD.Api.Controllers
             };
         }
 
+        private string FindTopicTradeEvidence(int qualificationId, string qualificationName, string topicDescription, string topicCode)
+        {
+            try
+            {
+                var keywords = topicDescription
+                    .Split(new[] { ' ', ',', '-', ';', ':', '(', ')' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(w => w.Length > 4)
+                    .Take(4)
+                    .ToList();
+
+                var query = _context.SourceMaterials
+                    .AsNoTracking()
+                    .Where(s => !string.IsNullOrEmpty(s.ExtractedText) && s.ExtractedText.Length > 100);
+
+                var matched = query
+                    .Where(s => keywords.Any(k => s.ExtractedText.Contains(k)) || (!string.IsNullOrEmpty(s.QualificationDescription) && s.QualificationDescription.Contains(qualificationName)))
+                    .OrderByDescending(s => s.ExtractedText.Length)
+                    .Select(s => s.ExtractedText)
+                    .Take(2)
+                    .ToList();
+
+                if (matched.Count > 0)
+                {
+                    var joined = string.Join("\n\n---\n\n", matched);
+                    return joined.Length > 3500 ? joined.Substring(0, 3500) + "..." : joined;
+                }
+            }
+            catch
+            {
+            }
+            return string.Empty;
+        }
+
+        private async Task<(string Content, string ModelTag)> GenerateTopicTextbookSectionAsync(
+            Qualification qualification,
+            Subject subject,
+            Topic topic,
+            List<AssessmentCriteria> criteria,
+            string evidence,
+            string? requestedModel,
+            CancellationToken cancellationToken)
+        {
+            var systemPrompt = "You are an expert South African vocational education author and trade curriculum specialist writing official TVET courseware for the Quality Council for Trades and Occupations (QCTO).";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"QUALIFICATION: {qualification.QualificationDescription} (NQF Level {qualification.NqfLevel}, {qualification.Credits} Credits)");
+            sb.AppendLine($"SUBJECT / MODULE: {subject.SubjectCode} - {subject.SubjectDescription}");
+            sb.AppendLine($"TOPIC: {topic.TopicCode} - {topic.TopicDescription}");
+            if (!string.IsNullOrWhiteSpace(topic.TopicPurpose))
+            {
+                sb.AppendLine($"TOPIC PURPOSE: {topic.TopicPurpose}");
+            }
+            sb.AppendLine();
+            sb.AppendLine("QCTO ASSESSMENT CRITERIA (Competence Benchmarks & Rubrics):");
+            if (criteria.Count > 0)
+            {
+                for (int i = 0; i < criteria.Count; i++)
+                {
+                    sb.AppendLine($"  {i + 1}. {criteria[i].Description}");
+                }
+            }
+            else
+            {
+                sb.AppendLine("  1. Demonstrate complete theoretical understanding and workshop practical competence for this topic.");
+            }
+            sb.AppendLine();
+            if (!string.IsNullOrWhiteSpace(evidence))
+            {
+                sb.AppendLine("TRADE REFERENCE TEXTBOOK EVIDENCE (Extracted from uploaded materials):");
+                sb.AppendLine(evidence);
+                sb.AppendLine();
+            }
+            sb.AppendLine("PEDAGOGICAL & TEXTBOOK DESIGN INSTRUCTIONS:");
+            sb.AppendLine("1. Write formal, comprehensive, learner-facing textbook content (at least 350-500 words). Do NOT write meta-instructions like 'The student must understand' or 'Refer to the textbook'.");
+            sb.AppendLine("2. Theoretical Principles: Thoroughly explain all core concepts, engineering terms, scientific definitions, operating mechanisms, and formulas.");
+            sb.AppendLine("3. Workshop Procedures: Detail step-by-step practical procedures, tool selection, setup sequences, measurement, and testing.");
+            sb.AppendLine("4. Safety & Standards: Detail statutory OHSA (Occupational Health & Safety Act) rules, SANS standards, hazard controls, and workshop PPE.");
+            sb.AppendLine("5. Assessment Competence Rubrics: Clearly explain what demonstrates competent performance versus not-yet-competent performance.");
+            sb.AppendLine("6. Formative Self-Assessment: Include 3-4 realistic revision questions with model answers at the end.");
+            sb.AppendLine();
+            sb.AppendLine("Write the complete textbook chapter section now:");
+
+            var userPrompt = sb.ToString();
+            var targetModel = (requestedModel ?? "gemma4:26b").Trim().ToLowerInvariant();
+
+            if (targetModel.Contains("gemma") || targetModel == "auto" || targetModel == "local")
+            {
+                var localText = await TryCompleteWithLocalGemmaAsync(systemPrompt, userPrompt, "gemma4:26b", cancellationToken);
+                if (!string.IsNullOrWhiteSpace(localText) && localText.Trim().Length > 200)
+                {
+                    return (localText.Trim(), "gemma4:26b (Local)");
+                }
+
+                if (AiRuntime.AllowGoogle())
+                {
+                    var geminiText = await GoogleGeminiClient.GenerateContentAsync(userPrompt, "gemini-3.8-flash", systemPrompt, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(geminiText))
+                    {
+                        return (geminiText.Trim(), "gemini-3.8-flash (Cloud Fallback)");
+                    }
+                }
+            }
+
+            if (AiRuntime.AllowGoogle())
+            {
+                var geminiText = await GoogleGeminiClient.GenerateContentAsync(userPrompt, "gemini-3.8-flash", systemPrompt, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(geminiText))
+                {
+                    return (geminiText.Trim(), "gemini-3.8-flash (Google Cloud)");
+                }
+            }
+
+            var fallback = BuildDeterministicInstructionalSection(topic.TopicCode, topic.TopicDescription, criteria.FirstOrDefault()?.Description, evidence);
+            return (fallback, "deterministic_educational_scaffold");
+        }
+
+        private async Task<string?> TryCompleteWithLocalGemmaAsync(string systemPrompt, string userPrompt, string modelName, CancellationToken ct)
+        {
+            var endpoints = AiRuntime.GetLocalLlmEndpointCandidates();
+            var payload = new
+            {
+                model = string.IsNullOrWhiteSpace(modelName) ? "gemma4:26b" : modelName,
+                messages = new[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user", content = userPrompt }
+                },
+                temperature = 0.3,
+                stream = false
+            };
+            var json = JsonSerializer.Serialize(payload);
+
+            foreach (var ep in endpoints)
+            {
+                if (string.IsNullOrWhiteSpace(ep)) continue;
+                try
+                {
+                    using var req = new HttpRequestMessage(HttpMethod.Post, ep.Trim())
+                    {
+                        Content = new StringContent(json, Encoding.UTF8, "application/json")
+                    };
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    cts.CancelAfter(TimeSpan.FromSeconds(35));
+                    using var resp = await _http.SendAsync(req, cts.Token);
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        var body = await resp.Content.ReadAsStringAsync(cts.Token);
+                        var text = TryExtractChatCompletionText(body) ?? TryExtractResponseOutputText(body);
+                        if (!string.IsNullOrWhiteSpace(text) && text.Trim().Length > 100)
+                        {
+                            return text.Trim();
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+            return null;
+        }
+
         private async Task<string?> TryAuthorInstructionalTextbookSectionAsync(
             string? topicCode,
             string? topicDescription,
@@ -4326,10 +4791,10 @@ namespace ETD.Api.Controllers
                 if (HasAuthoredInstructionalContent(localFirst)) return NormalizeAuthoredInstructionalText(localFirst);
             }
 
-            if (AiRuntime.AllowCloudProviders() && AiRuntime.AllowOpenAi())
+            if (AiRuntime.AllowCloudProviders() && AiRuntime.AllowGoogle())
             {
-                var openAi = await TryCompleteLearnerGuideAuthoringWithOpenAiAsync(systemPrompt, userPrompt);
-                if (HasAuthoredInstructionalContent(openAi)) return NormalizeAuthoredInstructionalText(openAi);
+                var gemini = await TryCompleteLearnerGuideAuthoringWithGeminiAsync(systemPrompt, userPrompt);
+                if (HasAuthoredInstructionalContent(gemini)) return NormalizeAuthoredInstructionalText(gemini);
             }
 
             if (!preferLocalFirst)
@@ -4432,38 +4897,23 @@ namespace ETD.Api.Controllers
             return null;
         }
 
-        private async Task<string?> TryCompleteLearnerGuideAuthoringWithOpenAiAsync(string systemPrompt, string userPrompt)
+        private async Task<string?> TryCompleteLearnerGuideAuthoringWithGeminiAsync(string systemPrompt, string userPrompt)
         {
-            var key = Secrets.GetOpenAIKey();
-            if (string.IsNullOrWhiteSpace(key)) return null;
-
-            var model = AiRuntime.GetOpenAiModel("gpt-5-mini");
-            var payload = new
-            {
-                model,
-                messages = new[]
-                {
-                    new { role = "system", content = systemPrompt },
-                    new { role = "user", content = userPrompt }
-                },
-                temperature = 0.3
-            };
-
-            using var msg = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
-            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-            msg.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            if (!AiRuntime.AllowGoogle()) return null;
             try
             {
-                using var resp = await _http.SendAsync(msg);
-                var body = await resp.Content.ReadAsStringAsync();
-                if (!resp.IsSuccessStatusCode) return null;
-                return TryExtractChatCompletionText(body);
+                var model = AiRuntime.GetGeminiModel("gemini-3.8-flash");
+                var text = await GoogleGeminiClient.GenerateContentAsync(userPrompt, model, systemPrompt);
+                return text?.Trim();
             }
             catch
             {
                 return null;
             }
         }
+
+        private Task<string?> TryCompleteLearnerGuideAuthoringWithOpenAiAsync(string systemPrompt, string userPrompt)
+            => TryCompleteLearnerGuideAuthoringWithGeminiAsync(systemPrompt, userPrompt);
 
         private static bool HasAuthoredInstructionalContent(string? value)
         {

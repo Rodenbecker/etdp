@@ -54,8 +54,8 @@ namespace ETD.Api.Controllers
         private const int DefaultSemanticStateLogTopK = 8;
         private const string HardcodedUserRole = "Human ETDP operator and final decision-maker.";
         private const string HardcodedAssistantRole = "Mira, the conversational ETDP in-app call desk, helpdesk, and review persona.";
-        private const string HardcodedSmiRole = "Qwen, the specialist compare/compile/parse support service integrated through Alpha that may generate supporting output for Mira to review when explicitly enabled, but is not the ETDP app's operator-facing core.";
-        private const string HardcodedCodexRole = "Codex is an engineering support assistant only. Pierre holds final authority for all coding, engineering, architecture, development, and approval decisions affecting the ETDP App and connected external workflows.";
+        private const string HardcodedSmiRole = "Gemma 4:26B, the specialist compare/compile/parse support service integrated to generate high-precision supporting output, curriculum synthesis, and detailed topic explanations.";
+        private const string HardcodedCodexRole = "Google Gemini and Antigravity provide AI engineering and educational reasoning assistance. Pierre holds final authority for all coding, engineering, architecture, development, and approval decisions affecting the ETDP App.";
         private static readonly string HardcodedSharedQctoLibraryPath = EtdpPaths.GetImportsRoot();
         private const string HardcodedOperationalAddendumHeading = "## Hardcoded Operational Addendum";
         private const string HardcodedCodexCodingAddendumHeading = "## Hardcoded Codex Coding Addendum";
@@ -588,7 +588,9 @@ namespace ETD.Api.Controllers
                 "knowledge_base" => "developer_knowledge_base",
                 "agent_shared_knowledge" => "agent_shared",
                 "agent_mira_knowledge" => "agent_mira",
-                "agent_qwen_knowledge" => "agent_qwen",
+                "agent_gemma_knowledge" => "agent_gemma",
+                "agent_qwen_knowledge" => "agent_gemma",
+                "gemma_agent" => "agent_gemma",
                 _ => s
             };
         }
@@ -598,7 +600,9 @@ namespace ETD.Api.Controllers
             var value = (scope ?? string.Empty).Trim().ToLowerInvariant();
             return value switch
             {
-                "qwen" => "qwen",
+                "gemma" => "gemma",
+                "gemma4" => "gemma",
+                "qwen" => "gemma",
                 "mira" => "mira",
                 _ => "shared"
             };
@@ -608,8 +612,9 @@ namespace ETD.Api.Controllers
         {
             var normalizedScope = NormalizeAgentKnowledgeScope(agentMode);
             var sourceTypes = new List<string> { "agent_shared" };
-            if (string.Equals(normalizedScope, "qwen", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(normalizedScope, "gemma", StringComparison.OrdinalIgnoreCase) || string.Equals(normalizedScope, "qwen", StringComparison.OrdinalIgnoreCase))
             {
+                sourceTypes.Add("agent_gemma");
                 sourceTypes.Add("agent_qwen");
             }
             else
@@ -626,7 +631,8 @@ namespace ETD.Api.Controllers
             {
                 "agent_shared" => "Shared Agent Knowledge",
                 "agent_mira" => "Mira Agent Knowledge",
-                "agent_qwen" => "Qwen Agent Knowledge",
+                "agent_gemma" => "Gemma 4:26B Agent Knowledge",
+                "agent_qwen" => "Gemma 4:26B Agent Knowledge",
                 "developer_knowledge_base" => "Developer Knowledge Base",
                 "local_source_upload" => "Local Source Upload",
                 var normalized => normalized
@@ -639,6 +645,7 @@ namespace ETD.Api.Controllers
             {
                 "local_source_upload" => 0,
                 "developer_knowledge_base" => 1,
+                "agent_gemma" => 2,
                 "agent_qwen" => 2,
                 "agent_shared" => 3,
                 "agent_mira" => 4,
@@ -1707,11 +1714,11 @@ namespace ETD.Api.Controllers
             var preset = (req?.PersonalityPreset ?? string.Empty).Trim();
             var traits = (req?.PersonalityTraits ?? string.Empty).Trim();
 
-            if (string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(agentMode, "gemma", StringComparison.OrdinalIgnoreCase) || string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase))
             {
-                profile.Preset = "qwen_specialist";
-                profile.Label = "Qwen Specialist";
-                profile.Instruction = "Use a precise, structured, specialist compare/compile tone. When teaching subject matter, address the learner directly as 'you' and explain the content in full step-by-step detail.";
+                profile.Preset = "gemma_specialist";
+                profile.Label = "Gemma 4:26B Specialist";
+                profile.Instruction = "Use a precise, structured, specialist compare/compile tone powered by Gemma 4:26B. When teaching subject matter, address the learner directly as 'you' and explain the content in full step-by-step detail.";
             }
             else
             {
@@ -1736,15 +1743,15 @@ namespace ETD.Api.Controllers
         private static string ResolveAgentMode(ChatRequest? req)
         {
             var explicitMode = (req?.AgentMode ?? string.Empty).Trim().ToLowerInvariant();
-            if (explicitMode == "qwen" || explicitMode == "mira")
+            if (explicitMode == "gemma" || explicitMode == "qwen" || explicitMode == "mira")
             {
                 return explicitMode;
             }
 
             var preset = (req?.PersonalityPreset ?? string.Empty).Trim().ToLowerInvariant();
-            if (preset.Contains("qwen", StringComparison.Ordinal))
+            if (preset.Contains("gemma", StringComparison.OrdinalIgnoreCase) || preset.Contains("qwen", StringComparison.OrdinalIgnoreCase))
             {
-                return "qwen";
+                return "gemma";
             }
 
             return "mira";
@@ -1752,8 +1759,10 @@ namespace ETD.Api.Controllers
 
         private static bool IsQwenAgentMode(string? agentMode)
         {
-            return string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(agentMode, "gemma", StringComparison.OrdinalIgnoreCase) || string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase);
         }
+
+        private static bool IsGemmaAgentMode(string? agentMode) => IsQwenAgentMode(agentMode);
 
         private static bool IsWorkflowIntent(string userContent)
         {
@@ -2560,11 +2569,11 @@ namespace ETD.Api.Controllers
                 : new List<SmiTaskTableItem>();
             var smiTaskTableLoaded = smiTaskItems.Count > 0;
 
-            var activeAgentName = string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase) ? "Qwen" : "Mira";
+            var activeAgentName = (string.Equals(agentMode, "gemma", StringComparison.OrdinalIgnoreCase) || string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase)) ? "Gemma 4:26B" : "Mira";
             var personality = ResolvePersonalityProfile(req);
             var characterProfile = LoadMiraCharacterProfile();
             var characterBlueprint = string.Equals(agentMode, "qwen", StringComparison.OrdinalIgnoreCase)
-                ? "Qwen is the specialist compare/compile, subject-matter synthesis, and detailed explanation persona integrated through Alpha. Be precise, structured, direct, and exact. When teaching, address the learner directly as 'you', write out the full assessment criteria instead of using codes, and explain the subject matter in enough detail that the guide can stand on its own."
+                ? "Gemma 4:26B is the specialist compare/compile, subject-matter synthesis, and detailed explanation persona. Be precise, structured, direct, and exact. When teaching, address the learner directly as 'you', write out the full assessment criteria instead of using codes, and explain the subject matter in enough detail that the guide can stand on its own."
                 : BuildCharacterBlueprintPrompt(characterProfile);
             var roleContract = BuildRoleContractPrompt();
             var advancedRules = LoadMiraAdvancedReasoningRules();
@@ -2841,7 +2850,7 @@ namespace ETD.Api.Controllers
                     forceEnabled: true);
                 if (!string.IsNullOrWhiteSpace(directQwenReply?.Answer))
                 {
-                    return await BuildChatResultAsync(directQwenReply.Answer.Trim(), "smi_qwen");
+                    return await BuildChatResultAsync(directQwenReply.Answer.Trim(), "smi_gemma");
                 }
 
                 var deterministicQwenReply = BuildDeterministicKnowledgeReply(
@@ -2849,7 +2858,7 @@ namespace ETD.Api.Controllers
                     contextualKnowledge,
                     curriculumFoundation,
                     personality.Label);
-                return await BuildChatResultAsync(deterministicQwenReply, "qwen_deterministic");
+                return await BuildChatResultAsync(deterministicQwenReply, "gemma_deterministic");
             }
 
             var systemPrompt = IsQwenAgentMode(agentMode)
@@ -2932,8 +2941,18 @@ namespace ETD.Api.Controllers
                 }
             }
 
-            if (AiRuntime.AllowOpenAi())
+            if (AiRuntime.AllowGoogle())
             {
+                try
+                {
+                    var geminiReply = await GoogleGeminiClient.GenerateContentAsync(userContent, systemInstruction: systemPrompt, ct: cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(geminiReply))
+                    {
+                        return await BuildChatResultAsync(geminiReply.Trim(), "gemini");
+                    }
+                }
+                catch { }
+
                 var cloudReply = await SendOpenAiChatRequestAsync(userContent, systemPrompt, cancellationToken);
                 if (IsSmiBusyPlaceholderResponse(cloudReply)) cloudReply = null;
                 if (!string.IsNullOrWhiteSpace(cloudReply))

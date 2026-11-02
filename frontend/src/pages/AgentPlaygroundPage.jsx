@@ -4,7 +4,7 @@ import { useQualification } from '../context/QualificationContext';
 
 const API_CHAT = '/api/Knowledge/chat';
 
-const normalizeAgentMode = (value) => (String(value || '').trim().toLowerCase() === 'qwen' ? 'qwen' : 'mira');
+const normalizeAgentMode = (value) => { const v = String(value || '').trim().toLowerCase(); return (v === 'gemma' || v === 'qwen') ? 'gemma' : 'mira'; };
 
 const createLocalId = (storageKey, prefix) => {
   try {
@@ -78,14 +78,14 @@ export default function AgentPlaygroundPage({ agentMode = 'mira' }) {
   const { qualificationId } = useQualification() || { qualificationId: null };
   const qid = Number(qualificationId || localStorage.getItem('qualificationId') || 0);
   const resolvedAgentMode = normalizeAgentMode(agentMode);
-  const isQwenMode = resolvedAgentMode === 'qwen';
-  const assistantName = isQwenMode ? 'Qwen Specialist' : 'Mira Your Lecturer';
-  const assistantShortName = isQwenMode ? 'Qwen' : 'Mira';
-  const currentQualiaRoute = isQwenMode ? '/qualia/qwen' : '/qualia/mira';
-  const currentPlaygroundRoute = isQwenMode ? '/playground/qwen' : '/playground/mira';
-  const alternateQualiaRoute = isQwenMode ? '/qualia/mira' : '/qualia/qwen';
-  const alternatePlaygroundRoute = isQwenMode ? '/playground/mira' : '/playground/qwen';
-  const alternateAssistantShortName = isQwenMode ? 'Mira' : 'Qwen';
+  const isQwenMode = resolvedAgentMode === 'gemma' || resolvedAgentMode === 'qwen';
+  const assistantName = isQwenMode ? 'Gemma 4:26B Specialist' : 'Mira Your Lecturer';
+  const assistantShortName = isQwenMode ? 'Gemma' : 'Mira';
+  const currentQualiaRoute = isQwenMode ? '/qualia/gemma' : '/qualia/mira';
+  const currentPlaygroundRoute = isQwenMode ? '/playground/gemma' : '/playground/mira';
+  const alternateQualiaRoute = isQwenMode ? '/qualia/mira' : '/qualia/gemma';
+  const alternatePlaygroundRoute = isQwenMode ? '/playground/mira' : '/playground/gemma';
+  const alternateAssistantShortName = isQwenMode ? 'Mira' : 'Gemma';
 
   const [qualificationCode, setQualificationCode] = useState('');
   const [qualificationDescription, setQualificationDescription] = useState('');
@@ -129,11 +129,11 @@ export default function AgentPlaygroundPage({ agentMode = 'mira' }) {
   }, [isQwenMode, qualificationCode, qualificationDescription]);
 
   const helperText = isQwenMode
-    ? 'Use Qwen to test detailed chapter explanations, subject matter alignment, and learner-facing teaching depth. Qwen can run with or without a selected qualification.'
+    ? 'Use Gemma 4:26B to test detailed chapter explanations, subject matter alignment, and learner-facing teaching depth. Qwen can run with or without a selected qualification.'
     : 'Use Mira to test workflow guidance, qualification-aware sequencing, and ETDP page support. When no qualification is selected, the playground still runs in global mode.';
 
   const promptPlaceholder = isQwenMode
-    ? 'Example: Qwen, expand this topic into a detailed learner-facing explanation and show the correct sequence step by step.'
+    ? 'Example: Gemma, expand this topic into a detailed learner-facing explanation and show the correct sequence step by step.'
     : 'Example: Mira, tell me the next safe ETDP workflow step and explain why it comes before the next page.';
 
   const startNewSession = () => {

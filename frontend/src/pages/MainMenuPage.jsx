@@ -209,6 +209,16 @@ export default function MainMenuPage() {
                 </button>
               </td>
             </tr>
+            <tr>
+              <td>9</td>
+              <td>Learning Products Delivered</td>
+              <td>Pre-generated courseware, textbooks, rubrics, presentations & videos</td>
+              <td>
+                <button className="next-step-button" type="button" onClick={() => navigate('/products')}>
+                  Browse Products Delivered
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>

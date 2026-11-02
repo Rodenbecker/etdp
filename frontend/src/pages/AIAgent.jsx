@@ -18,13 +18,14 @@ const API_LEARNING_MATERIAL_RULES = `${API_BASE}/Knowledge/learning-material-rul
 const API_SMI_TASK_SYNC = `${API_BASE}/Knowledge/smi-task-table/sync`;
 const API_SSC_LOG = `${API_BASE}/Knowledge/semantic-state-continuity-log`;
 const AGENT_NAME = 'Mira Your Lecturer';
-const QWEN_AGENT_NAME = 'Qwen Specialist';
+const GEMMA_AGENT_NAME = 'Gemma 4:26B Specialist';
+const QWEN_AGENT_NAME = GEMMA_AGENT_NAME;
 const MIRA_AVATAR_SRC = `${import.meta.env.BASE_URL}mira-face.png`;
 const MIRA_TTV_SEED_PREFIX = 'etdp:mira-ttv-seed:';
 const WORKFLOW_TRACKER_PREFIX = 'etdp:ai-workflow-tracker:';
 const AI_USER_ID_KEY = 'etdp:ai-user-id';
 const AI_SESSION_ID_KEY = 'etdp:ai-session-id';
-const normalizeAgentMode = (value) => (String(value || '').trim().toLowerCase() === 'qwen' ? 'qwen' : 'mira');
+const normalizeAgentMode = (value) => { const v = String(value || '').trim().toLowerCase(); return (v === 'gemma' || v === 'qwen') ? 'gemma' : 'mira'; };
 const DEFAULT_INGESTION = {
   filesScanned: 0,
   created: 0,
@@ -649,7 +650,7 @@ function MiraAvatar({ talking = false, compact = false }) {
 
 function AgentAvatar({ agentMode = 'mira', talking = false, compact = false }) {
   const resolvedAgentMode = normalizeAgentMode(agentMode);
-  if (resolvedAgentMode !== 'qwen') {
+  if (resolvedAgentMode !== 'gemma' && resolvedAgentMode !== 'qwen') {
     return <MiraAvatar talking={talking} compact={compact} />;
   }
 
@@ -1038,18 +1039,18 @@ export default function AIAgent({ agentMode = 'mira' }) {
   const location = useLocation();
   const { qualificationId } = useQualification() || { qualificationId: null };
   const resolvedAgentMode = normalizeAgentMode(agentMode);
-  const isQwenMode = resolvedAgentMode === 'qwen';
+  const isQwenMode = resolvedAgentMode === 'gemma' || resolvedAgentMode === 'qwen';
   const assistantName = isQwenMode ? QWEN_AGENT_NAME : AGENT_NAME;
-  const assistantShortName = isQwenMode ? 'Qwen' : 'Mira';
+  const assistantShortName = isQwenMode ? 'Gemma' : 'Mira';
   const assistantSubtitle = isQwenMode
     ? 'Specialist subject-matter analyst, curriculum interpreter, and detailed teaching support'
     : 'Friendly workflow guide, lecturer companion, and ETDP operator assistant';
-  const instructionsHeading = isQwenMode ? 'Qwen Qualia' : 'Mira Qualia';
-  const currentQualiaRoute = isQwenMode ? '/qualia/qwen' : '/qualia/mira';
-  const currentPlaygroundRoute = isQwenMode ? '/playground/qwen' : '/playground/mira';
-  const alternateQualiaRoute = isQwenMode ? '/qualia/mira' : '/qualia/qwen';
-  const alternatePlaygroundRoute = isQwenMode ? '/playground/mira' : '/playground/qwen';
-  const alternateAssistantShortName = isQwenMode ? 'Mira' : 'Qwen';
+  const instructionsHeading = isQwenMode ? 'Gemma Qualia' : 'Mira Qualia';
+  const currentQualiaRoute = isQwenMode ? '/qualia/gemma' : '/qualia/mira';
+  const currentPlaygroundRoute = isQwenMode ? '/playground/gemma' : '/playground/mira';
+  const alternateQualiaRoute = isQwenMode ? '/qualia/mira' : '/qualia/gemma';
+  const alternatePlaygroundRoute = isQwenMode ? '/playground/mira' : '/playground/gemma';
+  const alternateAssistantShortName = isQwenMode ? 'Mira' : 'Gemma';
   const canChatWithoutQualification = isQwenMode;
   const isDedicatedAIAgentRoute = location.pathname === '/ai-agent' || location.pathname.startsWith('/qualia/');
   const [collapsed, setCollapsed] = useState(() => !isDedicatedAIAgentRoute);
@@ -2144,7 +2145,7 @@ export default function AIAgent({ agentMode = 'mira' }) {
         return;
       }
 
-      const reply = data?.reply?.trim() || (isQwenMode ? 'Qwen could not generate a reply. Please try again.' : 'I could not generate a reply. Please try again.');
+      const reply = data?.reply?.trim() || (isQwenMode ? 'Gemma 4:26B could not generate a reply. Please try again.' : 'I could not generate a reply. Please try again.');
       const replyAssistant = String(data?.assistant || assistantName).trim() || assistantName;
       setSemanticState(normalizeSemanticState(data?.semanticState));
       setSemanticStateLog(normalizeSemanticStateLogCollection(data?.semanticStateLog));
@@ -2211,7 +2212,7 @@ export default function AIAgent({ agentMode = 'mira' }) {
               <strong>{scopeSummaryLabel}</strong>
               <div style={{ marginTop: 4 }}>
                 {isQwenMode
-                  ? 'Qwen can answer in global subject-matter mode when no qualification is selected.'
+                  ? 'Gemma 4:26B can answer in global subject-matter mode when no qualification is selected.'
                   : 'Mira keeps the workflow safest when a qualification is selected first.'}
               </div>
             </div>
@@ -2738,7 +2739,7 @@ export default function AIAgent({ agentMode = 'mira' }) {
 
           <p style={{ fontWeight: 'bold', marginBottom: 8 }}>
             {isQwenMode
-              ? 'Use the prompt window below and Qwen will build a detailed specialist response in the conversation window.'
+              ? 'Use the prompt window below and Gemma 4:26B will build a detailed specialist response in the conversation window.'
               : 'Use the prompt window below and Mira will keep the conversation in the response window.'}
           </p>
           {error && (
@@ -2774,7 +2775,7 @@ export default function AIAgent({ agentMode = 'mira' }) {
             )}
             {loading && (
               <div style={{ color: '#666', fontStyle: 'italic' }}>
-                {isQwenMode ? 'Qwen is building a detailed specialist answer...' : 'Mira is thinking through the next safe answer...'}
+                {isQwenMode ? 'Gemma 4:26B is building a detailed specialist answer...' : 'Mira is thinking through the next safe answer...'}
               </div>
             )}
             <div ref={chatEndRef} />

@@ -19,7 +19,7 @@ const defaultTopicParams = {
   maxVisualSlides: 3,
   includeGeneratedImageSlides: false,
   maxGeneratedImageSlides: 2,
-  generatedImageModel: 'gpt-image-1',
+  generatedImageModel: 'imagen-3.0-generate-002',
   generatedImageSize: '1024x1024',
   generatedImageStyle: ''
 };
@@ -790,7 +790,7 @@ const PowerPointSlidesPage = () => {
                               className="mainpage-input"
                               value={params.generatedImageModel}
                               onChange={(e) => patchTopicParams(id, { generatedImageModel: e.target.value })}
-                              placeholder="gpt-image-1"
+                              placeholder="imagen-3.0-generate-002"
                               disabled={!params.includeGeneratedImageSlides}
                             />
                           </label>

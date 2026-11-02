@@ -125,23 +125,26 @@ namespace ETD.Api.Controllers
             return Ok(snapshot);
         }
 
+        [HttpGet("gemini-continuity-status")]
         [HttpGet("codex-continuity-status")]
-        public IActionResult CodexContinuityStatus()
+        public IActionResult ContinuityStatus()
         {
             var status = _codexContinuityService.GetStatus();
             return Ok(status);
         }
 
+        [HttpPost("gemini-continuity-refresh")]
         [HttpPost("codex-continuity-refresh")]
-        public async Task<IActionResult> CodexContinuityRefresh([FromQuery] string? reason = null)
+        public async Task<IActionResult> ContinuityRefresh([FromQuery] string? reason = null)
         {
             var tag = string.IsNullOrWhiteSpace(reason) ? "manual-refresh" : reason!.Trim();
             var status = await _codexContinuityService.RefreshNowAsync(tag);
             return Ok(status);
         }
 
+        [HttpGet("gemini-continuity-latest")]
         [HttpGet("codex-continuity-latest")]
-        public IActionResult CodexContinuityLatest()
+        public IActionResult ContinuityLatest()
         {
             var status = _codexContinuityService.GetStatus();
             var markdown = _codexContinuityService.GetLatestMarkdown();

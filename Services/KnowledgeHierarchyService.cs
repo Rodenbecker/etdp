@@ -496,7 +496,7 @@ namespace ETD.Api.Services
             var scopes = new List<string>();
             if (string.Equals(normalizedScope, "all", StringComparison.OrdinalIgnoreCase))
             {
-                scopes.AddRange(new[] { "shared", "mira", "qwen" });
+                scopes.AddRange(new[] { "shared", "mira", "gemma" });
             }
             else
             {
@@ -1759,7 +1759,10 @@ namespace ETD.Api.Services
                 "global" => "shared",
                 "all" => "all",
                 "mira" => "mira",
-                "qwen" => "qwen",
+                "gemma" => "gemma",
+                "gemma4" => "gemma",
+                "gemma4:26b" => "gemma",
+                "qwen" => "gemma",
                 "shared" => "shared",
                 _ => fallback
             };
@@ -1770,7 +1773,7 @@ namespace ETD.Api.Services
             return NormalizeAgentKnowledgeScope(scope) switch
             {
                 "mira" => "Mira",
-                "qwen" => "Qwen",
+                "gemma" or "qwen" => "Gemma",
                 _ => "Shared"
             };
         }
@@ -1780,7 +1783,7 @@ namespace ETD.Api.Services
             return NormalizeAgentKnowledgeScope(scope) switch
             {
                 "mira" => "Mira",
-                "qwen" => "Qwen",
+                "gemma" or "qwen" => "Gemma",
                 _ => "Shared"
             };
         }
@@ -1790,7 +1793,7 @@ namespace ETD.Api.Services
             return NormalizeAgentKnowledgeScope(scope) switch
             {
                 "mira" => "agent_mira",
-                "qwen" => "agent_qwen",
+                "gemma" or "qwen" => "agent_gemma",
                 _ => "agent_shared"
             };
         }

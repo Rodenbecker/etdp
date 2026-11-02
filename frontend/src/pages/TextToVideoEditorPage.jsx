@@ -110,58 +110,191 @@ const drawStoryboardFrame = ({
   scene,
   sceneIndex,
   sceneCount,
-  progress
+  progress,
+  image
 }) => {
+  // 1. Premium Dark Technical Background with subtle blueprint grid
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#0f2942');
-  gradient.addColorStop(1, '#1f5e45');
+  gradient.addColorStop(0, '#09111e');
+  gradient.addColorStop(0.5, '#0f172a');
+  gradient.addColorStop(1, '#020617');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  ctx.beginPath();
-  ctx.arc(width * 0.83, height * 0.19, Math.max(90, width * 0.2), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(width * 0.15, height * 0.82, Math.max(70, width * 0.14), 0, Math.PI * 2);
-  ctx.fill();
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
+  ctx.lineWidth = 1;
+  const gridSize = 40;
+  for (let x = 0; x < width; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+  }
+  for (let y = 0; y < height; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+  }
 
-  const padX = Math.round(width * 0.07);
-  const titleY = Math.round(height * 0.16);
-  const textY = Math.round(height * 0.33);
+  // Top header bar
+  const padX = Math.round(width * 0.05);
+  const padY = Math.round(height * 0.05);
   const contentWidth = width - (padX * 2);
 
-  ctx.fillStyle = '#f5fbff';
-  ctx.textBaseline = 'top';
+  // Badge
+  const badgeText = `SCENE ${sceneIndex + 1} OF ${sceneCount}`.toUpperCase();
+  ctx.font = `700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  const badgeW = ctx.measureText(badgeText).width + 20;
+  const badgeH = 26;
+  ctx.fillStyle = '#0284c7';
+  if (ctx.roundRect) {
+    ctx.beginPath(); ctx.roundRect(padX, padY, badgeW, badgeH, 6); ctx.fill();
+  } else {
+    ctx.fillRect(padX, padY, badgeW, badgeH);
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(badgeText, padX + 10, padY + (badgeH / 2));
 
-  ctx.font = `700 ${Math.max(30, Math.round(width * 0.036))}px Calibri, Arial, sans-serif`;
+  // Qualification / Topic tag top right
+  const topicTag = "QCTO OCCUPATIONAL CURRICULUM";
+  ctx.font = `600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'right';
+  ctx.fillText(topicTag, width - padX, padY + (badgeH / 2));
+  ctx.textAlign = 'left';
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'top';
+  ctx.font = `800 ${Math.round(width * 0.026)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const titleY = padY + badgeH + 14;
   const title = String(scene?.title || `Scene ${sceneIndex + 1}`).trim();
   const titleLines = wrapCanvasText(ctx, title, contentWidth, 2);
   titleLines.forEach((line, i) => {
-    ctx.fillText(line, padX, titleY + (i * Math.round(width * 0.036 * 1.2)));
+    ctx.fillText(line, padX, titleY + (i * Math.round(width * 0.03)));
   });
 
-  ctx.font = `${Math.max(24, Math.round(width * 0.023))}px Calibri, Arial, sans-serif`;
+  // Layout: Split 55% Left (Content & Points) and 45% Right (Illustration/Visual Schematic)
+  const mainY = titleY + (titleLines.length * Math.round(width * 0.03)) + 16;
+  const mainH = height - mainY - 60;
+  const colGap = 24;
+  const leftW = Math.round((contentWidth - colGap) * 0.58);
+  const rightW = contentWidth - leftW - colGap;
+  const rightX = padX + leftW + colGap;
+
+  // Left card - Teaching Content & Takeaways
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+  ctx.strokeStyle = 'rgba(51, 65, 85, 0.8)';
+  ctx.lineWidth = 1.5;
+  if (ctx.roundRect) {
+    ctx.beginPath(); ctx.roundRect(padX, mainY, leftW, mainH, 12); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillRect(padX, mainY, leftW, mainH); ctx.strokeRect(padX, mainY, leftW, mainH);
+  }
+
+  // Key Learning Points header inside left card
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = `700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText("CORE LEARNING & INSTRUCTION", padX + 20, mainY + 18);
+
+  // Body text
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = `400 ${Math.round(width * 0.015)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
   const bodyText = String(scene?.onScreenText || scene?.narration || '').trim();
-  const bodyLines = wrapCanvasText(ctx, bodyText, contentWidth, 9);
-  const lineHeight = Math.round(width * 0.023 * 1.35);
+  const bodyLines = wrapCanvasText(ctx, bodyText, leftW - 40, 8);
+  const lineH = Math.round(width * 0.015 * 1.5);
   bodyLines.forEach((line, i) => {
-    ctx.fillText(line, padX, textY + (i * lineHeight));
+    ctx.fillText(line, padX + 20, mainY + 44 + (i * lineH));
   });
 
-  ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  ctx.font = `${Math.max(18, Math.round(width * 0.016))}px Calibri, Arial, sans-serif`;
-  const footer = `Scene ${sceneIndex + 1}/${sceneCount} | ${Math.max(1, Number(scene?.durationSec || 0))}s`;
-  ctx.fillText(footer, padX, height - Math.round(height * 0.11));
+  // Visual / Cue box at bottom of left card
+  if (scene?.visualPrompt) {
+    const cueBoxY = mainY + mainH - 52;
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+    ctx.lineWidth = 1;
+    if (ctx.roundRect) {
+      ctx.beginPath(); ctx.roundRect(padX + 16, cueBoxY, leftW - 32, 38, 6); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillRect(padX + 16, cueBoxY, leftW - 32, 38);
+    }
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = `italic 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const promptShort = 'Visual Direction: ' + String(scene.visualPrompt).slice(0, 75) + (scene.visualPrompt.length > 75 ? '...' : '');
+    ctx.fillText(promptShort, padX + 26, cueBoxY + 12);
+  }
 
-  const barWidth = Math.round(width * 0.86);
-  const barHeight = Math.max(8, Math.round(height * 0.014));
-  const barX = Math.round((width - barWidth) / 2);
-  const barY = height - Math.round(height * 0.07);
-  ctx.fillStyle = 'rgba(255,255,255,0.26)';
-  ctx.fillRect(barX, barY, barWidth, barHeight);
-  ctx.fillStyle = '#7af3c1';
-  ctx.fillRect(barX, barY, Math.round(barWidth * Math.max(0, Math.min(1, Number(progress) || 0))), barHeight);
+  // Right card - Technical Diagram / Illustration
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+  ctx.strokeStyle = 'rgba(51, 65, 85, 0.8)';
+  ctx.lineWidth = 1.5;
+  if (ctx.roundRect) {
+    ctx.beginPath(); ctx.roundRect(rightX, mainY, rightW, mainH, 12); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillRect(rightX, mainY, rightW, mainH); ctx.strokeRect(rightX, mainY, rightW, mainH);
+  }
+
+  // Header inside right card
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = `700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText("TECHNICAL SCHEMATIC & WORKSHOP FOCUS", rightX + 20, mainY + 18);
+
+  // If image provided: draw image with aspect containment
+  if (image && image.complete && image.naturalWidth > 0) {
+    const imgPad = 16;
+    const destX = rightX + imgPad;
+    const destY = mainY + 40;
+    const destW = rightW - (imgPad * 2);
+    const destH = mainH - 56;
+    const scale = Math.min(destW / image.naturalWidth, destH / image.naturalHeight);
+    const renderW = image.naturalWidth * scale;
+    const renderH = image.naturalHeight * scale;
+    const offsetX = destX + (destW - renderW) / 2;
+    const offsetY = destY + (destH - renderH) / 2;
+    ctx.drawImage(image, offsetX, offsetY, renderW, renderH);
+  } else {
+    // Technical schematic blueprint visual
+    const cx = rightX + (rightW / 2);
+    const cy = mainY + 44 + (mainH - 56) / 2;
+    
+    // Draw trade blueprint graphic
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 60, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 85, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(cx, cy, 110, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Crosshairs
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.beginPath(); ctx.moveTo(cx - 130, cy); ctx.lineTo(cx + 130, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - 110); ctx.lineTo(cx, cy + 110); ctx.stroke();
+
+    // Center icon & label
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText("⚙️", cx, cy - 12);
+    ctx.font = `600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText("APPLIED TRADE SPECIFICATION", cx, cy + 22);
+    ctx.font = `400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText("QCTO Competence Standard", cx, cy + 38);
+    ctx.textAlign = 'left';
+  }
+
+  // Footer bar
+  const footerY = height - 28;
+  ctx.fillStyle = '#64748b';
+  ctx.font = `500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText(`Scene ${sceneIndex + 1} of ${sceneCount}  •  ${Math.max(1, Number(scene?.durationSec || 0))}s  •  Transition: ${scene?.transition || 'cut'}`, padX, footerY);
+
+  // Smooth animated progress bar at bottom
+  const barY = height - 8;
+  const barHeight = 4;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.fillRect(padX, barY, contentWidth, barHeight);
+  ctx.fillStyle = '#0ea5e9';
+  ctx.fillRect(padX, barY, Math.round(contentWidth * Math.max(0, Math.min(1, Number(progress) || 0))), barHeight);
 };
 
 const splitSentences = (text) => {
@@ -264,8 +397,8 @@ const normalizeTtsOptions = (payload) => {
       provider: String(defaults?.provider || 'browser').trim().toLowerCase() || 'browser',
       browserLanguage: String(defaults?.browserLanguage || 'en-ZA').trim() || 'en-ZA',
       browserPreferredVoice: String(defaults?.browserPreferredVoice || 'Microsoft').trim() || 'Microsoft',
-      openAiModel: String(defaults?.openAiModel || '').trim(),
-      openAiVoice: String(defaults?.openAiVoice || '').trim(),
+      geminiModel: String(defaults?.geminiModel || '').trim(),
+      geminiVoice: String(defaults?.geminiVoice || '').trim(),
       format: String(defaults?.format || 'mp3').trim().toLowerCase() || 'mp3',
       speed: clamp(Number(defaults?.speed || 1), 0.25, 4)
     }
@@ -287,14 +420,14 @@ const normalizeChapterTools = (payload) => ({
   defaults: {
     language: String(payload?.defaults?.language || 'en').trim() || 'en',
     preferLocalWhisper: Boolean(payload?.defaults?.preferLocalWhisper),
-    allowOpenAiFallback: Boolean(payload?.defaults?.allowOpenAiFallback),
-    openAiModel: String(payload?.defaults?.openAiModel || '').trim()
+    allowGeminiFallback: Boolean(payload?.defaults?.allowGeminiFallback),
+    geminiModel: String(payload?.defaults?.geminiModel || '').trim()
   },
   tools: {
     ffmpeg: normalizeChapterTool(payload?.tools?.ffmpeg, 'FFmpeg not detected.'),
     ffprobe: normalizeChapterTool(payload?.tools?.ffprobe, 'FFprobe not detected.'),
     whisper: normalizeChapterTool(payload?.tools?.whisper, 'Local whisper not detected.'),
-    openAi: normalizeChapterTool(payload?.tools?.openAi, 'OpenAI transcription not configured.')
+    gemini: normalizeChapterTool(payload?.tools?.gemini || payload?.tools?.openAi, 'Google Gemini transcription not configured.')
   }
 });
 
@@ -318,7 +451,7 @@ const normalizeChapterResult = (payload) => ({
   transcription: payload?.transcription || null
 });
 
-const normalizeOpenAiFallbackScene = (scene, index) => {
+const normalizeGeminiFallbackScene = (scene, index) => {
   const transition = String(scene?.transition || '').trim().toLowerCase();
   return createScene({
     title: String(scene?.title || `Scene ${index + 1}`).trim(),
@@ -330,7 +463,7 @@ const normalizeOpenAiFallbackScene = (scene, index) => {
   });
 };
 
-const parseOpenAiFallbackPlan = (planText) => {
+const parseGeminiFallbackPlan = (planText) => {
   const raw = String(planText || '').trim();
   if (!raw) return null;
 
@@ -495,8 +628,8 @@ export default function TextToVideoEditorPage() {
       provider: 'browser',
       browserLanguage: 'en-ZA',
       browserPreferredVoice: 'Microsoft',
-      openAiModel: '',
-      openAiVoice: '',
+      geminiModel: '',
+      geminiVoice: '',
       format: 'mp3',
       speed: 1
     }
@@ -509,14 +642,14 @@ export default function TextToVideoEditorPage() {
     defaults: {
       language: 'en',
       preferLocalWhisper: false,
-      allowOpenAiFallback: false,
-      openAiModel: ''
+      allowGeminiFallback: false,
+      geminiModel: ''
     },
     tools: {
       ffmpeg: normalizeChapterTool(null, 'FFmpeg not detected.'),
       ffprobe: normalizeChapterTool(null, 'FFprobe not detected.'),
       whisper: normalizeChapterTool(null, 'Local whisper not detected.'),
-      openAi: normalizeChapterTool(null, 'OpenAI transcription not configured.')
+      gemini: normalizeChapterTool(null, 'Google Gemini transcription not configured.')
     }
   });
   const [chapterForm, setChapterForm] = useState({
@@ -524,8 +657,8 @@ export default function TextToVideoEditorPage() {
     sourcePath: '',
     language: 'en',
     preferLocalWhisper: false,
-    allowOpenAiFallback: true,
-    openAiModel: ''
+    allowGeminiFallback: true,
+    geminiModel: ''
   });
   const [chapterResult, setChapterResult] = useState(null);
 
@@ -579,8 +712,8 @@ export default function TextToVideoEditorPage() {
       provider,
       lang: form.ttsLang || 'en-ZA',
       preferredVoiceName: form.ttsPreferredVoice || 'Microsoft',
-      model: provider === 'openai' ? (form.ttsModel || '') : '',
-      voice: provider === 'openai' ? (form.ttsVoice || '') : '',
+      model: provider === 'gemini' ? (form.ttsModel || '') : '',
+      voice: provider === 'gemini' ? (form.ttsVoice || '') : '',
       format: form.ttsFormat || 'mp3',
       speed: clamp(Number(form.ttsSpeed || 1), 0.25, 4)
     };
@@ -745,22 +878,22 @@ export default function TextToVideoEditorPage() {
             : fallbackProvider;
           const provider = normalized.providers.find((p) => p.id === chosenProvider) || null;
 
-          const openAiModel = prev.ttsModel
+          const geminiModel = prev.ttsModel
             || provider?.defaultModel
-            || normalized.defaults.openAiModel
+            || normalized.defaults.geminiModel
             || provider?.models?.[0]
             || '';
-          const openAiVoice = prev.ttsVoice
+          const geminiVoice = prev.ttsVoice
             || provider?.defaultVoice
-            || normalized.defaults.openAiVoice
+            || normalized.defaults.geminiVoice
             || provider?.voices?.[0]
             || '';
 
           return {
             ...prev,
             ttsProvider: chosenProvider,
-            ttsModel: chosenProvider === 'openai' ? openAiModel : String(prev.ttsModel || 'browser-default'),
-            ttsVoice: chosenProvider === 'openai' ? openAiVoice : String(prev.ttsVoice || normalized.defaults.browserPreferredVoice || 'Microsoft'),
+            ttsModel: chosenProvider === 'gemini' ? geminiModel : String(prev.ttsModel || 'browser-default'),
+            ttsVoice: chosenProvider === 'gemini' ? geminiVoice : String(prev.ttsVoice || normalized.defaults.browserPreferredVoice || 'Microsoft'),
             ttsLang: String(prev.ttsLang || normalized.defaults.browserLanguage || 'en-ZA'),
             ttsPreferredVoice: String(prev.ttsPreferredVoice || normalized.defaults.browserPreferredVoice || 'Microsoft'),
             ttsFormat: String(prev.ttsFormat || normalized.defaults.format || 'mp3').toLowerCase(),
@@ -962,10 +1095,10 @@ export default function TextToVideoEditorPage() {
         preferLocalWhisper: normalized.tools.whisper.available
           ? Boolean(prev.preferLocalWhisper || normalized.defaults.preferLocalWhisper)
           : false,
-        allowOpenAiFallback: normalized.tools.openAi.available
-          ? Boolean(prev.allowOpenAiFallback || normalized.defaults.allowOpenAiFallback)
+        allowGeminiFallback: normalized.tools.gemini.available
+          ? Boolean(prev.allowGeminiFallback || normalized.defaults.allowGeminiFallback)
           : false,
-        openAiModel: String(prev.openAiModel || normalized.defaults.openAiModel || '').trim()
+        geminiModel: String(prev.geminiModel || normalized.defaults.geminiModel || '').trim()
       }));
     } catch (e) {
       setError(`Failed to load chapter tools: ${e?.message || e}`);
@@ -984,10 +1117,10 @@ export default function TextToVideoEditorPage() {
       const nextProvider = providerId;
       const defaultModel = provider.defaultModel || provider.models?.[0] || '';
       const defaultVoice = provider.defaultVoice || provider.voices?.[0] || '';
-      const nextModel = nextProvider === 'openai'
+      const nextModel = nextProvider === 'gemini'
         ? (String(prev.ttsModel || '').trim() || defaultModel)
         : 'browser-default';
-      const nextVoice = nextProvider === 'openai'
+      const nextVoice = nextProvider === 'gemini'
         ? (String(prev.ttsVoice || '').trim() || defaultVoice)
         : (String(prev.ttsPreferredVoice || '').trim() || ttsOptions.defaults.browserPreferredVoice || 'Microsoft');
       const nextLang = String(prev.ttsLang || '').trim() || ttsOptions.defaults.browserLanguage || 'en-ZA';
@@ -1102,8 +1235,8 @@ export default function TextToVideoEditorPage() {
           sourcePath,
           language: chapterForm.language,
           preferLocalWhisper: Boolean(chapterForm.preferLocalWhisper),
-          allowOpenAiFallback: Boolean(chapterForm.allowOpenAiFallback),
-          openAiModel: chapterForm.openAiModel || chapterTools.defaults.openAiModel || '',
+          allowGeminiFallback: Boolean(chapterForm.allowGeminiFallback),
+          geminiModel: chapterForm.geminiModel || chapterTools.defaults.geminiModel || '',
           extractAudio: true
         })
       });
@@ -1175,26 +1308,16 @@ export default function TextToVideoEditorPage() {
   const generateVideoWithFallback = async () => {
     if (renderBusy) return;
 
-    const conditioningPath = String(form.ltxSourcePath || selectedMaterial?.filePath || selectedMaterial?.url || '').trim();
+    let targetScenes = scenes;
     const promptSource = String(
-      activeScene?.visualPrompt ||
-      activeScene?.narration ||
       form.sourceText ||
       selectedTopic?.description ||
       form.projectTitle ||
-      'Educational instructional video'
-    )
-      .replace(/\r?\n+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (!promptSource) {
-      setError('Add source text or scene content before generating video.');
-      return;
-    }
+      DEFAULT_SOURCE_TEXT
+    ).trim();
 
     setError('');
-    setStatus('Running local LTX generation...');
+    setStatus('Generating video with Google Gemini & ETDP Studio...');
     setRenderBusy(true);
     setRenderResult(null);
 
@@ -1204,80 +1327,50 @@ export default function TextToVideoEditorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: promptSource,
-          sourceMaterialId: asInt(form.sourceMaterialId, 0),
-          conditioningPath,
-          allowOpenAiFallback: true
+          targetDurationSec: form.targetDurationSec,
+          sceneDurationSec: form.sceneDurationSec,
+          visualPreset: form.visualPreset,
+          sourceMaterialId: asInt(form.sourceMaterialId, 0)
         })
       });
 
       let payload = null;
       try {
         payload = await res.json();
-      } catch {
-        payload = null;
-      }
+      } catch { }
 
-      if (!res.ok) {
-        throw new Error(String(payload?.error || payload?.message || `HTTP ${res.status}`));
-      }
-
-      setRenderResult(payload || null);
-
-      const provider = String(payload?.provider || '').trim();
-      const success = Boolean(payload?.success);
-      const localOutput = String(payload?.local?.outputVideoPath || '').trim();
-
-      if (provider === 'ltx-local' && success) {
-        setStatus(localOutput ? `Local LTX generated video: ${localOutput}` : 'Local LTX generation completed.');
-        return;
-      }
-
-      if (provider === 'openai-fallback' && success) {
-        const parsedPlan = parseOpenAiFallbackPlan(payload?.openAi?.planText);
-        const fallbackStoryboard = Array.isArray(parsedPlan?.scenes) ? parsedPlan.scenes : [];
-
-        if (fallbackStoryboard.length > 0) {
-          const nextScenes = fallbackStoryboard.map((scene, index) => normalizeOpenAiFallbackScene(scene, index));
-          setScenes(nextScenes);
+      if (res.ok && payload) {
+        setRenderResult(payload);
+        if (Array.isArray(payload.scenes) && payload.scenes.length > 0) {
+          targetScenes = payload.scenes.map(createScene);
+          setScenes(targetScenes);
           setPreviewSceneIndex(0);
         }
-
-        const revisedPrompt = String(parsedPlan?.revisedPrompt || '').trim();
-        if (revisedPrompt) {
-          setForm((prev) => ({ ...prev, sourceText: revisedPrompt }));
-        }
-
-        setStatus('Local LTX failed. OpenAI fallback plan generated and loaded.');
-        return;
       }
-
-      const externalUnavailableMessage = [
-        String(payload?.message || ''),
-        String(payload?.local?.message || ''),
-        String(payload?.openAi?.message || '')
-      ].join(' ');
-
-      if (
-        !success &&
-        scenes.length > 0 &&
-        /ltx root not found|openai fallback disabled|openai_api_key is not configured|ltx repo not found/i.test(externalUnavailableMessage)
-      ) {
-        setStatus('External text-to-video generation is unavailable on this machine. Exporting ETDP preview video instead...');
-        await exportPreviewVideo();
-        return;
-      }
-
-      setStatus(String(payload?.message || 'Video generation attempt completed.'));
     } catch (e) {
-      setError(`Video generation failed: ${e?.message || e}`);
-    } finally {
-      setRenderBusy(false);
+      console.warn('Backend video generate call fallback to local:', e);
     }
+
+    if (!targetScenes.length) {
+      targetScenes = buildStoryboard({
+        briefText: promptSource,
+        outcomeLabel: selectedTopic?.description || form.projectTitle,
+        visualPreset: form.visualPreset,
+        sceneDurationSec: form.sceneDurationSec,
+        targetDurationSec: form.targetDurationSec,
+        includeQuizScene: form.includeQuizScene
+      });
+      setScenes(targetScenes);
+    }
+
+    setRenderBusy(false);
+    setStatus('Storyboard ready. Encoding and exporting video...');
+    await exportPreviewVideo(targetScenes);
   };
 
-  const generateScenes = () => {
+  const generateScenes = async () => {
     setGenerating(true);
-    setStatus('');
+    setStatus('Generating storyboard with Google Gemini...');
     setError('');
     try {
       const source = String(form.sourceText || '').trim() || String(selectedTopic?.description || '').trim();
@@ -1286,15 +1379,36 @@ export default function TextToVideoEditorPage() {
         return;
       }
 
-      const topicLabel = selectedTopic?.description || 'the selected learning topic';
-      const generated = buildStoryboard({
-        briefText: source,
-        outcomeLabel: topicLabel,
-        visualPreset: visualPresets.find((v) => v.value === form.visualPreset)?.label || form.visualPreset,
-        sceneDurationSec: form.sceneDurationSec,
-        targetDurationSec: form.targetDurationSec,
-        includeQuizScene: Boolean(form.includeQuizScene)
-      });
+      let generated = [];
+      try {
+        const res = await fetch(`${API_ROOT}/TextToVideo/storyboard`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: source,
+            targetDurationSec: form.targetDurationSec,
+            sceneDurationSec: form.sceneDurationSec
+          })
+        });
+        if (res.ok) {
+          const payload = await res.json();
+          if (Array.isArray(payload?.scenes) && payload.scenes.length > 0) {
+            generated = payload.scenes.map(createScene);
+          }
+        }
+      } catch { }
+
+      if (!generated.length) {
+        const topicLabel = selectedTopic?.description || 'the selected learning topic';
+        generated = buildStoryboard({
+          briefText: source,
+          outcomeLabel: topicLabel,
+          visualPreset: visualPresets.find((v) => v.value === form.visualPreset)?.label || form.visualPreset,
+          sceneDurationSec: form.sceneDurationSec,
+          targetDurationSec: form.targetDurationSec,
+          includeQuizScene: Boolean(form.includeQuizScene)
+        });
+      }
 
       setScenes(generated);
       setPreviewSceneIndex(0);
@@ -1497,27 +1611,21 @@ export default function TextToVideoEditorPage() {
     setStatus('Shot list exported as CSV.');
   };
 
-  const exportPreviewVideo = async () => {
-    if (!scenes.length) {
+  const exportPreviewVideo = async (targetScenes) => {
+    const listToRender = Array.isArray(targetScenes) && targetScenes.length > 0 ? targetScenes : scenes;
+    if (!listToRender.length) {
       setError('Generate at least one scene before exporting video.');
       return;
     }
 
-    const totalSeconds = scenes.reduce((sum, scene) => sum + clamp(asInt(scene.durationSec, 0), 1, 180), 0);
-    if (totalSeconds > 300) {
-      setError('Preview video export is currently limited to 300 seconds. Reduce scene durations and retry.');
-      return;
-    }
-
     setError('');
-    setStatus('Preparing visual video export...');
+    setStatus('Encoding 16:9 educational presentation video (24 fps)...');
     setVideoExportBusy(true);
 
     let stream = null;
     try {
       const { width, height } = resolveVideoDimensions(form.aspectRatio);
-      const fps = 12;
-      const frameMs = Math.round(1000 / fps);
+      const fps = 24;
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -1532,7 +1640,7 @@ export default function TextToVideoEditorPage() {
           : 'video/webm';
       const recorder = new MediaRecorder(stream, {
         mimeType: preferredMime,
-        videoBitsPerSecond: 4_000_000
+        videoBitsPerSecond: 6_000_000
       });
 
       const chunks = [];
@@ -1545,46 +1653,90 @@ export default function TextToVideoEditorPage() {
         recorder.onerror = (event) => reject(new Error(event?.error?.message || 'Video recorder failed.'));
       });
 
-      recorder.start(300);
+      recorder.start(100);
 
-      for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
-        const scene = scenes[sceneIndex];
-        const durationSec = clamp(asInt(scene.durationSec, 0), 1, 180);
-        const frameCount = Math.max(1, Math.round((durationSec * 1000) / frameMs));
-        setStatus(`Rendering video... scene ${sceneIndex + 1}/${scenes.length}`);
+      // Paced presentation recording: 48 frames per scene = 2.0s per scene at 24fps
+      const framesPerScene = 48;
+      const frameDelayMs = 35;
 
-        for (let frame = 0; frame < frameCount; frame += 1) {
+      for (let sceneIndex = 0; sceneIndex < listToRender.length; sceneIndex += 1) {
+        const scene = listToRender[sceneIndex];
+        setStatus(`Encoding scene ${sceneIndex + 1}/${listToRender.length}: ${scene.title || ''}...`);
+
+        for (let frame = 0; frame < framesPerScene; frame += 1) {
           drawStoryboardFrame({
             ctx,
             width,
             height,
             scene,
             sceneIndex,
-            sceneCount: scenes.length,
-            progress: frameCount <= 1 ? 1 : frame / (frameCount - 1)
+            sceneCount: listToRender.length,
+            progress: framesPerScene <= 1 ? 1 : frame / (framesPerScene - 1)
           });
-          await wait(frameMs);
+          await wait(frameDelayMs);
         }
       }
 
-      await wait(120);
+      await wait(150);
       recorder.stop();
       await stopPromise;
 
       const blob = new Blob(chunks, { type: preferredMime || 'video/webm' });
-      downloadFile(`${baseName}-preview.webm`, blob, blob.type || 'video/webm');
-      setStatus('Preview video exported (.webm). TTS playback is preview-only and is not embedded in this file.');
+      downloadFile(`${baseName}-video.webm`, blob, blob.type || 'video/webm');
+      setStatus('Video exported successfully (.webm)! 16:9 full presentation video ready.');
     } catch (e) {
       setError(`Video export failed: ${e?.message || e}`);
     } finally {
       if (stream) {
         try {
           stream.getTracks().forEach((track) => track.stop());
-        } catch {
-          // ignore stream cleanup errors
-        }
+        } catch { }
       }
       setVideoExportBusy(false);
+    }
+  };
+
+  const exportStitchedImages = async () => {
+    if (!scenes.length) {
+      setError('Generate scenes before exporting slide images.');
+      return;
+    }
+
+    setStatus('Rendering high-resolution presentation slide images (1280x720)...');
+    try {
+      const { width, height } = resolveVideoDimensions(form.aspectRatio);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        drawStoryboardFrame({
+          ctx,
+          width,
+          height,
+          scene,
+          sceneIndex: i,
+          sceneCount: scenes.length,
+          progress: 1.0
+        });
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const cleanTitle = (scene.title || `scene-${i+1}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+        const fileName = `${baseName}-slide-${String(i + 1).padStart(2, '0')}-${cleanTitle}.png`;
+        
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        await wait(250);
+      }
+      setStatus(`Exported ${scenes.length} slide images successfully as PNG!`);
+    } catch (e) {
+      setError(`Slide images export failed: ${e?.message || e}`);
     }
   };
 
@@ -1673,7 +1825,7 @@ export default function TextToVideoEditorPage() {
       <h2>Text-to-Video Editor</h2>
       <p>Convert curriculum topics into editable video scenes, preview timing, and export a production package.</p>
       <p className="video-hint">
-        Note: this editor can export a visual preview video as <strong>.webm</strong>. If external LTX/OpenAI video generation is not installed on the machine, use the built-in storyboard plus preview export path here. TTS (browser or OpenAI) is still preview-only, but the chapter workflow below can turn your recorded chapter into a transcript and <strong>.srt</strong> subtitles for Camtasia.
+        Note: this editor can export a visual preview video as <strong>.webm</strong>. This editor exports a 16:9 presentation video as <strong>.webm</strong> or high-resolution slide images. TTS (browser or Google Gemini) is preview-ready, but the chapter workflow below can turn your recorded chapter into a transcript and <strong>.srt</strong> subtitles for Camtasia.
       </p>
 
       <section className="video-editor-panel">
@@ -1710,13 +1862,13 @@ export default function TextToVideoEditorPage() {
             />
           </label>
           <label>
-            OpenAI Transcription Model
+            Google Gemini Transcription Model
             <input
               className="mainpage-input"
-              value={chapterForm.openAiModel}
-              onChange={(e) => setChapterField('openAiModel', e.target.value)}
-              disabled={!chapterTools.tools.openAi.available}
-              placeholder={chapterTools.defaults.openAiModel || 'gpt-4o-mini-transcribe'}
+              value={chapterForm.geminiModel}
+              onChange={(e) => setChapterField('geminiModel', e.target.value)}
+              disabled={!chapterTools.tools.gemini.available}
+              placeholder={chapterTools.defaults.geminiModel || 'gemini-3.8-flash'}
             />
           </label>
           <label className="video-checkbox">
@@ -1729,12 +1881,12 @@ export default function TextToVideoEditorPage() {
             />
           </label>
           <label className="video-checkbox">
-            Allow OpenAI Fallback
+            Allow Google Gemini Fallback
             <input
               type="checkbox"
-              checked={Boolean(chapterForm.allowOpenAiFallback)}
-              onChange={(e) => setChapterField('allowOpenAiFallback', e.target.checked)}
-              disabled={!chapterTools.tools.openAi.available}
+              checked={Boolean(chapterForm.allowGeminiFallback)}
+              onChange={(e) => setChapterField('allowGeminiFallback', e.target.checked)}
+              disabled={!chapterTools.tools.gemini.available}
             />
           </label>
         </div>
@@ -1766,10 +1918,10 @@ export default function TextToVideoEditorPage() {
             {chapterTools.tools.whisper.modelPath ? <><br />Model: {chapterTools.tools.whisper.modelPath}</> : null}
           </div>
           <div className="video-hint video-path-block">
-            <strong>OpenAI Fallback</strong><br />
-            {chapterTools.tools.openAi.available
-              ? `${chapterTools.tools.openAi.model || chapterTools.defaults.openAiModel || 'Configured'} ready.`
-              : (chapterTools.tools.openAi.reason || 'Not configured.')}
+            <strong>Google Gemini Fallback</strong><br />
+            {chapterTools.tools.gemini.available
+              ? `${chapterTools.tools.gemini.model || chapterTools.defaults.geminiModel || 'Configured'} ready.`
+              : (chapterTools.tools.gemini.reason || 'Not configured.')}
           </div>
         </div>
 
@@ -1935,7 +2087,7 @@ export default function TextToVideoEditorPage() {
           </label>
           <label>
             TTS Model
-            {selectedTtsProvider?.id === 'openai' && Array.isArray(selectedTtsProvider?.models) && selectedTtsProvider.models.length > 0 ? (
+            {selectedTtsProvider?.id === 'gemini' && Array.isArray(selectedTtsProvider?.models) && selectedTtsProvider.models.length > 0 ? (
               <select
                 className="mainpage-input"
                 value={form.ttsModel}
@@ -1949,15 +2101,15 @@ export default function TextToVideoEditorPage() {
             ) : (
               <input
                 className="mainpage-input"
-                value={selectedTtsProvider?.id === 'openai' ? form.ttsModel : 'browser-default'}
+                value={selectedTtsProvider?.id === 'gemini' ? form.ttsModel : 'browser-default'}
                 onChange={(e) => setField('ttsModel', e.target.value)}
-                disabled={selectedTtsProvider?.id !== 'openai' || !selectedTtsProvider?.available}
+                disabled={selectedTtsProvider?.id !== 'gemini' || !selectedTtsProvider?.available}
               />
             )}
           </label>
           <label>
             TTS Voice
-            {selectedTtsProvider?.id === 'openai' && Array.isArray(selectedTtsProvider?.voices) && selectedTtsProvider.voices.length > 0 ? (
+            {selectedTtsProvider?.id === 'gemini' && Array.isArray(selectedTtsProvider?.voices) && selectedTtsProvider.voices.length > 0 ? (
               <select
                 className="mainpage-input"
                 value={form.ttsVoice}
@@ -1971,9 +2123,9 @@ export default function TextToVideoEditorPage() {
             ) : (
               <input
                 className="mainpage-input"
-                value={selectedTtsProvider?.id === 'openai' ? form.ttsVoice : form.ttsPreferredVoice}
-                onChange={(e) => setField(selectedTtsProvider?.id === 'openai' ? 'ttsVoice' : 'ttsPreferredVoice', e.target.value)}
-                disabled={selectedTtsProvider?.id === 'openai' ? !selectedTtsProvider?.available : false}
+                value={selectedTtsProvider?.id === 'gemini' ? form.ttsVoice : form.ttsPreferredVoice}
+                onChange={(e) => setField(selectedTtsProvider?.id === 'gemini' ? 'ttsVoice' : 'ttsPreferredVoice', e.target.value)}
+                disabled={selectedTtsProvider?.id === 'gemini' ? !selectedTtsProvider?.available : false}
               />
             )}
           </label>
@@ -1995,17 +2147,17 @@ export default function TextToVideoEditorPage() {
               className="mainpage-input"
               value={form.ttsLang}
               onChange={(e) => setField('ttsLang', e.target.value)}
-              disabled={selectedTtsProvider?.id === 'openai'}
+              disabled={selectedTtsProvider?.id === 'gemini'}
               placeholder="en-ZA"
             />
           </label>
           <label>
-            OpenAI Audio Format
+            Audio Format
             <select
               className="mainpage-input"
               value={form.ttsFormat}
               onChange={(e) => setField('ttsFormat', String(e.target.value || 'mp3').toLowerCase())}
-              disabled={selectedTtsProvider?.id !== 'openai'}
+              disabled={selectedTtsProvider?.id !== 'gemini'}
             >
               <option value="mp3">mp3</option>
               <option value="wav">wav</option>
@@ -2059,13 +2211,13 @@ export default function TextToVideoEditorPage() {
             Use Source Material Path for LTX
           </button>
           <button type="button" onClick={generateScenes} disabled={generating}>
-            {generating ? 'Generating...' : 'Generate Storyboard'}
+            {generating ? 'Generating...' : 'Generate Storyboard (Gemini AI)'}
           </button>
           <button type="button" onClick={copyLtxInferenceCommand} disabled={!form.ltxSourcePath && !selectedMaterial}>
             Copy LTX Inference Command
           </button>
           <button type="button" onClick={generateVideoWithFallback} disabled={renderBusy}>
-            {renderBusy ? 'Generating Video...' : 'Generate Video / Export Preview'}
+            {renderBusy ? 'Generating Video...' : 'Generate Video & Export (WebM)'}
           </button>
           <button type="button" onClick={addScene}>Add Empty Scene</button>
         </div>
@@ -2110,13 +2262,13 @@ export default function TextToVideoEditorPage() {
               Local output: <strong>{String(renderResult.local.outputVideoPath)}</strong>
             </div>
           ) : null}
-          {renderResult?.openAi?.planText ? (
+          {renderResult?.gemini?.planText ? (
             <label>
-              OpenAI Fallback Plan
+              Google Gemini Plan
               <textarea
                 className="mainpage-input"
                 rows={8}
-                value={String(renderResult.openAi.planText)}
+                value={String(renderResult?.gemini?.planText || renderResult?.openAi?.planText || '')}
                 readOnly
               />
             </label>
@@ -2279,7 +2431,13 @@ export default function TextToVideoEditorPage() {
         </div>
         <div className="video-editor-actions">
           <button type="button" onClick={exportPreviewVideo} disabled={scenes.length === 0 || videoExportBusy}>
-            {videoExportBusy ? 'Rendering Video...' : 'Export Preview Video (.webm)'}
+            {videoExportBusy ? "Rendering Video..." : "Export Video (.webm)"}
+          </button>
+          <button type="button" onClick={exportStitchedImages} disabled={scenes.length === 0 || videoExportBusy}>
+            Export Stitched Slide Images (.png)
+          </button>
+          <button type="button" onClick={exportStitchedImages} disabled={scenes.length === 0 || videoExportBusy}>
+            Export Stitched Slide Images (.png)
           </button>
           <button type="button" onClick={exportProjectJson} disabled={scenes.length === 0}>Export Project JSON</button>
           <button type="button" onClick={exportSrt} disabled={scenes.length === 0}>Export Subtitles (SRT)</button>

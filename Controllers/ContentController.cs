@@ -39,7 +39,7 @@ namespace ETD.Api.Controllers
         private const string CurriculumBenchmarkMarker = "__CURRICULUM_BENCHMARK__";
         private const string CurriculumBenchmarkAssessmentMarker = "__WORKFLOW_CANONICAL__";
         private const string DefaultModeratorResponsesEndpoint = "";
-        private const string DefaultGoogleEnvPath = @"C:\ETDP\ETDP\google.env";
+        private static string DefaultGoogleEnvPath => EtdpPaths.CombineProject("google.env");
         private static readonly HashSet<string> GitHubDocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".txt", ".md", ".pdf", ".docx", ".pptx", ".csv", ".html", ".htm", ".json", ".jsonl", ".xml", ".yml", ".yaml",
@@ -1523,7 +1523,9 @@ namespace ETD.Api.Controllers
                 "agent_shared_knowledge" => "agent_shared",
                 "mira_agent" => "agent_mira",
                 "agent_mira_knowledge" => "agent_mira",
-                "qwen_agent" => "agent_qwen",
+                "gemma_agent" => "agent_gemma",
+                "agent_gemma_knowledge" => "agent_gemma",
+                "qwen_agent" => "agent_gemma",
                 "agent_qwen_knowledge" => "agent_qwen",
                 _ => s
             };
@@ -5900,12 +5902,19 @@ namespace ETD.Api.Controllers
                     archive = structures["mira"].ArchivePath,
                     duplicates = structures["mira"].DuplicatePath
                 },
+                gemma = new
+                {
+                    rootPath = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).ScopeRootPath,
+                    inbox = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).InboxPath,
+                    archive = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).ArchivePath,
+                    duplicates = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).DuplicatePath
+                },
                 qwen = new
                 {
-                    rootPath = structures["qwen"].ScopeRootPath,
-                    inbox = structures["qwen"].InboxPath,
-                    archive = structures["qwen"].ArchivePath,
-                    duplicates = structures["qwen"].DuplicatePath
+                    rootPath = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).ScopeRootPath,
+                    inbox = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).InboxPath,
+                    archive = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).ArchivePath,
+                    duplicates = (structures.ContainsKey("gemma") ? structures["gemma"] : (structures.ContainsKey("qwen") ? structures["qwen"] : structures["shared"])).DuplicatePath
                 }
             });
         }
@@ -10890,6 +10899,13 @@ namespace ETD.Api.Controllers
                     return Ok(new { content = localDraft, backend = "local_llm", aiMode });
             }
 
+            if (AiRuntime.AllowGoogle())
+            {
+                var geminiDraft = await TryGenerateDraftWithGeminiAsync(systemPrompt, userPrompt);
+                if (!string.IsNullOrWhiteSpace(geminiDraft))
+                    return Ok(new { content = geminiDraft, backend = "google_gemini", aiMode });
+            }
+
             if (AiRuntime.AllowOpenAi())
             {
                 var openAiDraft = await TryGenerateDraftWithOpenAiAsync(systemPrompt, userPrompt);
@@ -10945,6 +10961,25 @@ namespace ETD.Api.Controllers
                 "- If coverage is too thin, output 'INSUFFICIENT_SOURCE_COVERAGE:' and state what subject matter is missing.\n" +
                 "- The learner should be able to study this section and apply the topic afterwards.\n\n" +
                 $"Source Excerpts:\n{sourcesText}";
+        }
+
+        private static async Task<string?> TryGenerateDraftWithGeminiAsync(string systemPrompt, string userPrompt)
+        {
+            if (!AiRuntime.AllowGoogle()) return null;
+            try
+            {
+                var combined = $"{systemPrompt}\n\n{userPrompt}";
+                var result = await GoogleGeminiClient.GenerateContentAsync(combined, AiRuntime.GetGeminiModel());
+                if (!string.IsNullOrWhiteSpace(result))
+                {
+                    return result.Trim();
+                }
+            }
+            catch
+            {
+                // Fall through
+            }
+            return null;
         }
 
         private async Task<string?> TryGenerateDraftWithLocalLlmAsync(string systemPrompt, string userPrompt)

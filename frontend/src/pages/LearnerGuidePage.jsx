@@ -53,6 +53,13 @@ const LearnerGuidePage = () => {
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewTitle, setPreviewTitle] = useState('Learner Guide Preview');
   const [previewFileName, setPreviewFileName] = useState('LearnerGuide.docx');
+  const [synthModel, setSynthModel] = useState('gemma4:26b');
+  const [synthScope, setSynthScope] = useState('subject');
+  const [synthForceRefresh, setSynthForceRefresh] = useState(false);
+  const [synthBusy, setSynthBusy] = useState(false);
+  const [synthResult, setSynthResult] = useState(null);
+  const [synthStatusInfo, setSynthStatusInfo] = useState(null);
+  const [loadingSynthStatus, setLoadingSynthStatus] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -99,14 +106,14 @@ const LearnerGuidePage = () => {
         const data = await res.json();
         if (!active) return;
         const defaults = data?.defaults || {};
-        setTtsModel(String(defaults?.openAiModel || 'gpt-4o-mini-tts'));
-        setTtsVoice(String(defaults?.openAiVoice || 'alloy'));
+        setTtsModel(String(defaults?.geminiModel || defaults?.openAiModel || 'gemini-3.8-flash-tts'));
+        setTtsVoice(String(defaults?.geminiVoice || defaults?.openAiVoice || 'Puck'));
         setTtsFormat(String(defaults?.format || 'mp3'));
         setTtsSpeed(Number(defaults?.speed || 1));
       } catch {
         if (!active) return;
-        setTtsModel('gpt-4o-mini-tts');
-        setTtsVoice('alloy');
+        setTtsModel('gemini-3.8-flash-tts');
+        setTtsVoice('Puck');
         setTtsFormat('mp3');
         setTtsSpeed(1);
       }
@@ -338,7 +345,7 @@ const LearnerGuidePage = () => {
     if (qid > 0) params.set('qualificationId', String(qid));
     params.set('subjectId', String(selectedSubjectId));
     params.set('paraphrase', useParaphrase ? 'true' : 'false');
-    params.set('model', String(ttsModel || 'gpt-4o-mini-tts'));
+    params.set('model', String(ttsModel || 'gemini-3.8-flash-tts'));
     params.set('voice', String(ttsVoice || 'alloy'));
     params.set('format', String(ttsFormat || 'mp3'));
     params.set('speed', String(Math.max(0.25, Math.min(2, Number(ttsSpeed || 1)))));
@@ -358,6 +365,72 @@ const LearnerGuidePage = () => {
       setError(`Failed to start learner guide audio export: ${e?.message || e}`);
     } finally {
       setDownloadingAudio(false);
+    }
+  };
+
+  const loadSynthesisStatus = async () => {
+    if (qid <= 0) return;
+    setLoadingSynthStatus(true);
+    try {
+      const p = new URLSearchParams();
+      p.set('qualificationId', String(qid));
+      if (selectedSubjectId && selectedSubjectId !== ALL_SUBJECTS_VALUE) {
+        p.set('subjectId', String(selectedSubjectId));
+      }
+      const res = await fetch(`${API}/LearnerGuide/synthesis-status?${p.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSynthStatusInfo(data);
+      }
+    } catch {
+    } finally {
+      setLoadingSynthStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSynthesisStatus();
+  }, [qid, selectedSubjectId]);
+
+  const handleSynthesizeTextbook = async () => {
+    if (qid <= 0) {
+      setError('Please select a valid qualification first.');
+      return;
+    }
+    setSynthBusy(true);
+    setError('');
+    setStatus(`Synthesizing textbook chapters with ${synthModel}... This delineates curriculum topics and assessment criteria strictly in QCTO national standard layout.`);
+    setSynthResult(null);
+
+    try {
+      const payload = {
+        qualificationId: qid,
+        subjectId: (synthScope === 'subject' && selectedSubjectId !== ALL_SUBJECTS_VALUE) ? Number(selectedSubjectId) : null,
+        model: synthModel,
+        forceRefresh: synthForceRefresh,
+        maxTopics: 60
+      };
+
+      const res = await fetch(`${API}/LearnerGuide/synthesize-textbook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || 'Textbook synthesis request failed');
+      }
+
+      const data = await res.json();
+      setSynthResult(data);
+      setStatus(`✨ Textbook synthesis complete! Processed ${data?.topicsProcessed ?? 0} topics (${data?.wordsGenerated ?? 0} words) using ${data?.modelUsed || synthModel}.`);
+      await loadSynthesisStatus();
+      await loadReview();
+    } catch (e) {
+      setError(`Textbook synthesis failed: ${e?.message || e}`);
+    } finally {
+      setSynthBusy(false);
     }
   };
 
@@ -461,6 +534,148 @@ const LearnerGuidePage = () => {
           </select>
         </label>
       </div>
+
+      {/* --- QCTO TVET Textbook Synthesis Card (Gemma 4:26B & Google Gemini) --- */}
+      <section style={{
+        margin: '16px 0 24px',
+        padding: '18px 20px',
+        background: 'linear-gradient(135deg, #0b1a2e 0%, #102a45 100%)',
+        border: '1px solid #1e3a5f',
+        borderRadius: 10,
+        color: '#e2e8f0',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.25)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>✨</span> QCTO TVET Textbook Synthesis Engine
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#94a3b8' }}>
+              Delineates national curriculum specifications & assessment criteria into structured TVET textbook chapters using Gemma 4:26B & Google Gemini.
+            </p>
+          </div>
+          {synthStatusInfo ? (
+            <div style={{ display: 'flex', gap: 12, background: 'rgba(255,255,255,0.06)', padding: '6px 14px', borderRadius: 6, fontSize: '0.82rem' }}>
+              <div><strong style={{ color: '#38bdf8' }}>{synthStatusInfo.synthesizedTopicsCount}</strong>/{synthStatusInfo.totalTopics} Topics</div>
+              <div><strong style={{ color: '#4ade80' }}>{synthStatusInfo.coveragePercent}%</strong> Coverage</div>
+              <div><strong style={{ color: '#facc15' }}>{synthStatusInfo.totalWordCount?.toLocaleString()}</strong> Words</div>
+            </div>
+          ) : null}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.85rem' }}>
+            <span><strong>AI Model Engine:</strong></span>
+            <select
+              className="mainpage-input"
+              style={{ background: '#0a1626', color: '#fff', borderColor: '#334155' }}
+              value={synthModel}
+              onChange={(e) => setSynthModel(e.target.value)}
+            >
+              <option value="gemma4:26b">Gemma 4:26B (Local / Ollama) [Recommended]</option>
+              <option value="gemini-3.8-flash">Google Gemini 3.8 Flash (Cloud)</option>
+              <option value="auto">Auto (Gemma 4:26B Local with Gemini Fallback)</option>
+            </select>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.85rem' }}>
+            <span><strong>Synthesis Scope:</strong></span>
+            <select
+              className="mainpage-input"
+              style={{ background: '#0a1626', color: '#fff', borderColor: '#334155' }}
+              value={synthScope}
+              onChange={(e) => setSynthScope(e.target.value)}
+            >
+              <option value="subject">Currently Selected Subject</option>
+              <option value="qualification">Entire Qualification (All Subjects)</option>
+            </select>
+          </label>
+
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 18 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={synthForceRefresh}
+                onChange={(e) => setSynthForceRefresh(e.target.checked)}
+              />
+              <span>Force Regenerate (Overwrite old fragments)</span>
+            </label>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleSynthesizeTextbook}
+            disabled={synthBusy || qid <= 0}
+            style={{
+              background: synthBusy ? '#475569' : '#0284c7',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: '0.92rem',
+              cursor: synthBusy ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
+            }}
+          >
+            {synthBusy ? '🔄 Synthesizing TVET Textbook with AI...' : '✨ Synthesize Full TVET Textbook'}
+          </button>
+
+          <button
+            type="button"
+            onClick={loadSynthesisStatus}
+            disabled={loadingSynthStatus || qid <= 0}
+            style={{
+              background: 'transparent',
+              color: '#94a3b8',
+              border: '1px solid #334155',
+              padding: '8px 14px',
+              borderRadius: 6,
+              fontSize: '0.85rem',
+              cursor: 'pointer'
+            }}
+          >
+            {loadingSynthStatus ? 'Checking...' : 'Refresh Status'}
+          </button>
+
+          <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+            Follows national standard: Subjects &rarr; Modules &rarr; Topics &rarr; Assessment Criteria &rarr; OHSA Safety &rarr; Self-Checks.
+          </span>
+        </div>
+
+        {synthResult ? (
+          <div style={{ marginTop: 14, background: 'rgba(0,0,0,0.3)', border: '1px solid #1e293b', borderRadius: 6, padding: 12, fontSize: '0.85rem' }}>
+            <div style={{ fontWeight: 600, color: '#38bdf8', marginBottom: 6 }}>
+              {synthResult.message}
+            </div>
+            <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>
+              Qualification: {synthResult.qualificationTitle} · Model: {synthResult.modelUsed} · Words: {synthResult.wordsGenerated?.toLocaleString()}
+            </div>
+            {Array.isArray(synthResult.details) && synthResult.details.length > 0 ? (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer', color: '#cbd5e1' }}>
+                  View Synthesized Topics List ({synthResult.details.length})
+                </summary>
+                <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8, paddingRight: 6 }}>
+                  {synthResult.details.map((item, idx) => (
+                    <div key={idx} style={{ padding: '4px 0', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between' }}>
+                      <span><strong>{item.topicCode || item.subjectCode}</strong>: {item.topicTitle}</span>
+                      <span style={{ color: item.wordCount >= 200 ? '#4ade80' : '#facc15' }}>
+                        {item.wordCount} words ({item.model})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       <label style={{ display: 'block', marginBottom: 10 }}>
         <input

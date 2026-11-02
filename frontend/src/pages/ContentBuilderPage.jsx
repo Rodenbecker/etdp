@@ -317,7 +317,7 @@ export default function ContentBuilderPage() {
   const [runtimeConfig, setRuntimeConfig] = useState(null);
   const [runtimeForm, setRuntimeForm] = useState({
     aiMode: 'offline',
-    openAiModel: 'gpt-5-mini',
+    openAiModel: 'gemini-3.8-flash',
     openAiApiKey: '',
     localLlmEndpoint: '',
     localLlmModel: ''
@@ -1032,7 +1032,7 @@ export default function ContentBuilderPage() {
         setRuntimeForm(prev => ({
           ...prev,
           aiMode: String(cfg?.aiMode || 'offline'),
-          openAiModel: String(cfg?.openAiModel || 'gpt-5-mini'),
+          openAiModel: String(cfg?.openAiModel || 'gemini-3.8-flash'),
           localLlmEndpoint: String(cfg?.localLlmEndpoint || ''),
           localLlmModel: String(cfg?.localLlmModel || '')
         }));
@@ -2291,7 +2291,7 @@ export default function ContentBuilderPage() {
     }
   };
 
-  const draftWithOpenAI = async () => {
+  const draftWithGemini = async () => {
     if (!entry) return;
     setStatus('');
     setDraftText('');
@@ -2364,7 +2364,7 @@ export default function ContentBuilderPage() {
   })();
   const draftButtonLabel = backendOfflineEnforced
     ? 'Draft with Local AI (Offline)'
-    : (runtimeConfig?.localLlmConfigured ? 'Draft with Local AI' : 'Draft with OpenAI');
+    : (runtimeConfig?.localLlmConfigured ? 'Draft with Local AI' : 'Draft with Google Gemini');
   const statusIsSuccess = /(inserted|uploaded|imported|saved|found|loaded|processed|draft|finalised|finalized|moved|prepared)/i.test(String(status || ''));
 
   return (
@@ -2381,7 +2381,7 @@ export default function ContentBuilderPage() {
       {runtimeConfig && (
         <div className="cb-entry-card">
           <div><strong>Runtime:</strong> {String(runtimeConfig?.aiMode || 'offline')}</div>
-          <div><strong>OpenAI:</strong> {runtimeConfig?.openAiConfigured ? `${runtimeConfig?.openAiModel || 'configured'} ready` : (runtimeConfig?.openAiEnabled ? 'enabled, key not stored' : 'disabled by AI mode')}</div>
+          <div><strong>Google Gemini:</strong> {runtimeConfig?.openAiConfigured ? `${runtimeConfig?.openAiModel || 'configured'} ready` : (runtimeConfig?.openAiEnabled ? 'enabled, key not stored' : 'disabled by AI mode')}</div>
           <div>
             <strong>Local Library:</strong> {localLibraryExists ? 'Available' : 'Missing'} {localLibraryPath ? `• ${localLibraryPath}` : ''}
           </div>
@@ -2399,7 +2399,7 @@ export default function ContentBuilderPage() {
               </select>
             </label>
             <label>
-              OpenAI Model
+              Google Gemini Model
               <input
                 className="mainpage-input"
                 value={runtimeForm.openAiModel}
@@ -2408,7 +2408,7 @@ export default function ContentBuilderPage() {
               />
             </label>
             <label>
-              OpenAI API Key
+              Google Gemini API Key
               <input
                 className="mainpage-input"
                 type="password"
@@ -2576,7 +2576,7 @@ export default function ContentBuilderPage() {
                 <option value="openaip">OpenAIP / Figshare (keyless public)</option>
                 <option value="searx">Searx (self-hosted)</option>
                 <option value="google">Google</option>
-                <option value="openai">OpenAI (requires key)</option>
+                <option value="google">Google Gemini Search</option>
               </select>
             </label>
             <div className="cb-muted cb-help-text">
@@ -2592,7 +2592,7 @@ export default function ContentBuilderPage() {
           <div className="cb-block">
             <label className="cb-inline-check">
               <input type="checkbox" checked={useOpenAI} onChange={e => setUseOpenAI(e.target.checked)} disabled={offlineMode || backendOfflineEnforced} />
-              <span className="cb-inline-check-text">Use OpenAI for search</span>
+              <span className="cb-inline-check-text">Use Google Gemini for search</span>
             </label>
           </div>
           <div className="cb-block">
@@ -2762,7 +2762,7 @@ export default function ContentBuilderPage() {
           </div>
           <hr className="cb-separator" />
           <div>
-            <button onClick={draftWithOpenAI}>{draftButtonLabel}</button>
+            <button onClick={draftWithGemini}>{draftButtonLabel}</button>
           </div>
           <div className="cb-block">
             <label className="cb-control-field">Draft Output</label>

@@ -8,7 +8,7 @@ const API_MIRA_ADVANCED_RULES = '/api/Knowledge/mira-advanced-rules';
 const API_SMI_RULES = '/api/Knowledge/smi-compare-compile-rules';
 const API_MIRA_REVIEW_FEEDBACK = '/api/Knowledge/mira-review-feedback';
 const API_MIRA_CHAT = '/api/Knowledge/chat';
-const SPECIALIST_NAME = 'Qwen';
+const SPECIALIST_NAME = 'Gemma 4:26B';
 
 const DEFAULT_ROLE_CONTRACT = {
   miraPrimaryRole: '',
@@ -700,9 +700,9 @@ export default function AgentGovernancePage() {
         <div style={{ color: '#36506b' }}>Playground mode: <strong>{qid > 0 ? 'Qualification-scoped when possible' : 'Global rule-training mode'}</strong></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
           <button type="button" onClick={() => navigate('/qualia/mira')} style={buttonSecondary}>Mira Qualia</button>
-          <button type="button" onClick={() => navigate('/qualia/qwen')} style={buttonSecondary}>{`${SPECIALIST_NAME} Qualia`}</button>
+          <button type="button" onClick={() => navigate('/qualia/gemma')} style={buttonSecondary}>{`${SPECIALIST_NAME} Qualia`}</button>
           <button type="button" onClick={() => navigate('/playground/mira')} style={buttonSecondary}>Mira Playground</button>
-          <button type="button" onClick={() => navigate('/playground/qwen')} style={buttonSecondary}>{`${SPECIALIST_NAME} Playground`}</button>
+          <button type="button" onClick={() => navigate('/playground/gemma')} style={buttonSecondary}>{`${SPECIALIST_NAME} Playground`}</button>
         </div>
       </div>
 

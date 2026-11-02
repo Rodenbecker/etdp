@@ -35,19 +35,39 @@ namespace ETD.Api.Utils
         public static bool AllowCloudProviders() => !IsOfflineMode();
         // Microsoft Foundry is intentionally disabled to keep ETDP independent of Azure resources.
         public static bool AllowFoundry() => false;
-        public static bool AllowOpenAi() => IsHybridMode() || IsCloudMode();
+        public static bool AllowGoogle() => IsHybridMode() || IsCloudMode();
+        public static bool AllowOpenAi() => AllowGoogle();
         public static bool PreferLocalFirst() => !IsCloudMode();
 
-        public static string GetOpenAiModel(string fallback = "gpt-5-mini")
+        public static string GetGeminiModel(string fallback = "gemini-3.8-flash")
         {
             return FirstNonEmpty(
-                Environment.GetEnvironmentVariable("OPENAI_MODEL"),
-                LoadRuntimeSettings().OpenAiModel,
+                Environment.GetEnvironmentVariable("GEMINI_MODEL"),
+                Environment.GetEnvironmentVariable("GOOGLE_MODEL"),
+                LoadRuntimeSettings().GeminiModel,
                 fallback) ?? fallback;
+        }
+
+        public static string GetGoogleApiKey()
+        {
+            var key = FirstNonEmpty(
+                Environment.GetEnvironmentVariable("GEMINI_API_KEY"),
+                Environment.GetEnvironmentVariable("GOOGLE_API_KEY"),
+                Environment.GetEnvironmentVariable("GOOGLE_SEARCH_KEY"),
+                Secrets.GetGoogleKey());
+            return key ?? string.Empty;
+        }
+
+        public static string GetOpenAiModel(string fallback = "gemini-3.8-flash")
+        {
+            return GetGeminiModel(fallback);
         }
 
         public static string GetOpenAiApiKey()
         {
+            var googleKey = GetGoogleApiKey();
+            if (!string.IsNullOrWhiteSpace(googleKey)) return googleKey;
+
             var envKey = FirstNonEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
             if (!string.IsNullOrWhiteSpace(envKey))
             {
@@ -108,6 +128,7 @@ namespace ETD.Api.Utils
                 Environment.GetEnvironmentVariable("PARAPHRASE_WRAPPER_ENDPOINT"),
                 Environment.GetEnvironmentVariable("LOCAL_PARAPHRASE_ENDPOINT"),
                 LoadRuntimeSettings().LocalLlmEndpoint,
+                "http://127.0.0.1:8099/api/chat",
                 "http://127.0.0.1:11434/api/chat",
                 "http://127.0.0.1:5000/api/chat"
             };
@@ -138,7 +159,9 @@ namespace ETD.Api.Utils
                 Environment.GetEnvironmentVariable("GEMMA_MODEL"),
                 Environment.GetEnvironmentVariable("PARAPHRASE_WRAPPER_MODEL"),
                 LoadRuntimeSettings().LocalLlmModel,
-                "gemma4:26b"
+                "gemma4:26b",
+                "gemma-4-26b-a4b-it",
+                "gemma-4-31b-it"
             };
 
             return candidates
@@ -197,7 +220,9 @@ namespace ETD.Api.Utils
                 LocalLlmEndpoint = (settings.LocalLlmEndpoint ?? string.Empty).Trim(),
                 LocalLlmModel = (settings.LocalLlmModel ?? string.Empty).Trim(),
                 LocalLlmApiKey = (settings.LocalLlmApiKey ?? string.Empty).Trim(),
-                OpenAiModel = (settings.OpenAiModel ?? string.Empty).Trim(),
+                GeminiModel = (settings.GeminiModel ?? settings.OpenAiModel ?? string.Empty).Trim(),
+                OpenAiModel = (settings.GeminiModel ?? settings.OpenAiModel ?? string.Empty).Trim(),
+                GoogleApiKey = (settings.GoogleApiKey ?? string.Empty).Trim(),
                 UpdatedAtUtc = DateTime.UtcNow
             };
 
@@ -238,7 +263,9 @@ namespace ETD.Api.Utils
             public string LocalLlmEndpoint { get; set; } = string.Empty;
             public string LocalLlmModel { get; set; } = string.Empty;
             public string LocalLlmApiKey { get; set; } = string.Empty;
-            public string OpenAiModel { get; set; } = string.Empty;
+            public string GeminiModel { get; set; } = "gemini-3.8-flash";
+            public string OpenAiModel { get; set; } = "gemini-3.8-flash";
+            public string GoogleApiKey { get; set; } = string.Empty;
             public DateTime UpdatedAtUtc { get; set; }
         }
     }

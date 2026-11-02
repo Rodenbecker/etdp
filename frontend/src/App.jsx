@@ -67,6 +67,7 @@ import QualityCouncilCurriculaPage from './pages/QualityCouncilCurriculaPage';
 import ActivationPage from './pages/ActivationPage';
 import RequireActivation from './pages/RequireActivation';
 import AgentGovernancePage from './pages/AgentGovernancePage';
+import ProductsPage from './pages/ProductsPage';
 
 const App = () => (
     <ErrorBoundary fallback={ErrorFallback}>
@@ -190,10 +191,12 @@ const App = () => (
                 <Route path="ai-agent" element={<Navigate to="/qualia/mira" replace />} />
                 <Route path="qualia" element={<Navigate to="/qualia/mira" replace />} />
                 <Route path="qualia/mira" element={<AIAgent agentMode="mira" />} />
-                <Route path="qualia/qwen" element={<AIAgent agentMode="qwen" />} />
+                <Route path="qualia/gemma" element={<AIAgent agentMode="gemma" />} />
+                <Route path="qualia/qwen" element={<Navigate to="/qualia/gemma" replace />} />
                 <Route path="playground" element={<Navigate to="/playground/mira" replace />} />
                 <Route path="playground/mira" element={<AgentPlaygroundPage agentMode="mira" />} />
-                <Route path="playground/qwen" element={<AgentPlaygroundPage agentMode="qwen" />} />
+                <Route path="playground/gemma" element={<AgentPlaygroundPage agentMode="gemma" />} />
+                <Route path="playground/qwen" element={<Navigate to="/playground/gemma" replace />} />
                 <Route path="playground/training" element={<TrainingPage />} />
                 <Route path="playground/assessment" element={<TrainingPage initialPanel="assessment" />} />
 
@@ -225,6 +228,8 @@ const App = () => (
                 <Route path="llm-assessment" element={<TrainingPage initialPanel="assessment" />} />
                 <Route path="user-guide" element={<UserGuidePage />} />
                 <Route path="agent-governance" element={<AgentGovernancePage />} />
+                <Route path="products" element={<ProductsPage />} />
+                <Route path="learning-products" element={<Navigate to="/products" replace />} />
             </Route>
         </Routes>
     </ErrorBoundary>
