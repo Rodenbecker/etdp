@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETDP - AI-Powered Occupational Learning Design Platform</title>
+    <meta name="description" content="Education, Training & Development Practitioner System. Automated courseware generation, QCTO curriculum alignment, and assessment design powered by Google Gemini and Gemma 4:26B.">
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-hover: #1e40af;
+            --primary-light: #eff6ff;
+            --accent: #2563eb;
+            --text-dark: #0f172a;
+            --text-muted: #475569;
+            --text-light: #64748b;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --border-hover: #cbd5e1;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.03);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-dark);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Navigation */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 0.9rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .nav-badge {
+            background: var(--primary);
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.2rem 0.55rem;
+            border-radius: 6px;
+            letter-spacing: 0.05em;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            font-weight: 500;
+            transition: color 0.15s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .btn-nav-launch {
+            background: var(--primary);
+            color: #ffffff !important;
+            padding: 0.5rem 1.1rem;
+            border-radius: 8px;
+            font-weight: 600 !important;
+            transition: background 0.15s ease !important;
+        }
+
+        .btn-nav-launch:hover {
+            background: var(--primary-hover) !important;
+        }
+
+        /* Hero */
+        .hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            color: #ffffff;
+            padding: 5rem 2rem 4.5rem 2rem;
+            text-align: center;
+        }
+
+        .hero-container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        .hero-eyebrow {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #bfdbfe;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.4rem 1rem;
+            border-radius: 999px;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 {
+            font-size: 2.75rem;
+            line-height: 1.2;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 1.25rem;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            line-height: 1.65;
+            color: #cbd5e1;
+            margin-bottom: 2.25rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-actions {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary:hover {
+            background: #f1f5f9;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            background: #ffffff;
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+        }
+
+        .stats-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-item h3 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-item p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Section Layout */
+        .section {
+            padding: 4.5rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .section-eyebrow {
+            color: var(--accent);
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .section-title {
+            font-size: 2.1rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text-dark);
+            margin-bottom: 0.75rem;
+        }
+
+        .section-subtitle {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        /* Feature Cards */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.75rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--border-hover);
+        }
+
+        .feature-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-size: 1.4rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.6rem;
+        }
+
+        .feature-card p {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Products Showcase Section */
+        .products-section {
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 5rem 2rem;
+        }
+
+        .products-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .product-card {
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+        }
+
+        .product-card:hover {
+            background: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent);
+        }
+
+        .product-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .badge-type {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .badge-pdf { background: #fee2e2; color: #b91c1c; }
+        .badge-xlsx { background: #dcfce7; color: #15803d; }
+        .badge-pptx { background: #ffedd5; color: #c2410c; }
+        .badge-mp4 { background: #dbeafe; color: #1d4ed8; }
+
+        .product-size {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        .product-category {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.4rem;
+        }
+
+        .product-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            line-height: 1.35;
+        }
+
+        .product-desc {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 0.6rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-download {
+            flex: 1;
+            text-align: center;
+            background: var(--text-dark);
+            color: #ffffff;
+            padding: 0.55rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.15s ease;
+        }
+
+        .btn-download:hover {
+            background: #1e293b;
+        }
+
+        .btn-preview {
+            background: #ffffff;
+            color: var(--accent);
+            border: 1px solid var(--border);
+            padding: 0.55rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .btn-preview:hover {
+            background: var(--primary-light);
+            border-color: #93c5fd;
+        }
+
+        /* Distribution & Server Section */
+        .guide-box {
+            background: #0f172a;
+            color: #ffffff;
+            border-radius: 14px;
+            padding: 2.5rem;
+            margin-top: 2rem;
+        }
+
+        .guide-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .guide-step h4 {
+            color: #93c5fd;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .guide-step p {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+
+        .code-block {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #38bdf8;
+            padding: 0.65rem 0.9rem;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            display: inline-block;
+            word-break: break-all;
+        }
+
+        /* Footer */
+        .footer {
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem 2rem 2rem;
+            text-align: center;
+            font-size: 0.88rem;
+            color: var(--text-light);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 1.25rem;
+            list-style: none;
+        }
+
+        .footer-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        .footer-disclaimer {
+            font-size: 0.82rem;
+            color: #94a3b8;
+            max-width: 650px;
+            margin: 0.75rem auto 0 auto;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                gap: 0.75rem;
+                padding: 1rem;
+            }
+            .hero h1 {
+                font-size: 2rem;
+            }
+            .hero p {
+                font-size: 1rem;
+            }
+            .section {
+                padding: 3rem 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a href="#" class="nav-brand">
+            <span class="nav-badge">ETDP</span>
+            <span>Education & Training System</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#about">Overview</a></li>
+            <li><a href="#features">Capabilities</a></li>
+            <li><a href="#products">Delivered Products</a></li>
+            <li><a href="#server">Run Server</a></li>
+            <li><a href="https://github.com/ONGALALI/etdp" target="_blank" rel="noreferrer">GitHub</a></li>
+            <li><a href="http://localhost:5299/qualifications" target="_blank" class="btn-nav-launch">Launch App (Port 5299)</a></li>
+        </ul>
+    </nav>
+
+    <!-- Hero Header -->
+    <header class="hero">
+        <div class="hero-container">
+            <span class="hero-eyebrow">QCTO & SETA Occupational Education Framework</span>
+            <h1>AI-Powered Curriculum Design & Automated Courseware Engine</h1>
+            <p>
+                An occupational courseware platform that scaffolds national qualifications into publication-ready Learner Guides,
+                Student Workbooks, Summative Assessments, Assessor Memoranda, and multimedia slide decks. Powered by Google Gemini and Gemma 4:26B.
+            </p>
+            <div class="hero-actions">
+                <a href="http://localhost:5299/qualifications" target="_blank" class="btn btn-primary">
+                    ▶ Launch ETDP Application
+                </a>
+                <a href="#products" class="btn btn-secondary">
+                    📥 Browse Delivered Products
+                </a>
+                <a href="https://github.com/ONGALALI/etdp" target="_blank" rel="noreferrer" class="btn btn-secondary">
+                    🐙 GitHub Repository
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stats-container">
+            <div class="stat-item">
+                <h3>17+ Deliverables</h3>
+                <p>Complete learning packs per qualification</p>
+            </div>
+            <div class="stat-item">
+                <h3>100% Aligned</h3>
+                <p>QCTO, SETA & NQF curriculum standards</p>
+            </div>
+            <div class="stat-item">
+                <h3>Google Gemini & Gemma</h3>
+                <p>Gemini 3.8 Flash & local Gemma 4:26B tutor</p>
+            </div>
+            <div class="stat-item">
+                <h3>Single Portable Server</h3>
+                <p>Self-contained .NET 8 host on port 5299</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Capabilities Section -->
+    <section id="features" class="section">
+        <div class="section-header">
+            <span class="section-eyebrow">End-to-End Workflow</span>
+            <h2 class="section-title">Engineered for Vocational & Occupational Training</h2>
+            <p class="section-subtitle">
+                ETDP bridges the gap between formal South African occupational qualifications and day-to-day classroom delivery with automated, audit-ready educational resources.
+            </p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📋</div>
+                <h3>Curriculum Alignment</h3>
+                <p>
+                    Ingest Quality Council curriculum specifications. Structure qualifications by phases, subjects (Knowledge & Practical modules), topics, and exact assessment criteria.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📚</div>
+                <h3>Automated Courseware</h3>
+                <p>
+                    Synthesize publication-grade Learner Guides and Student Workbooks in Microsoft Word (.docx) with formal typographic styling, tables of contents, and illustrative diagrams.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⚖️</div>
+                <h3>Summative Assessments & Memoranda</h3>
+                <p>
+                    Generate criterion-mapped exam papers, multiple choice, true/false items, and complete assessor answer keys that satisfy rigorous QCTO moderation standards.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🛠️</div>
+                <h3>Lecturer Toolkit & Schedules</h3>
+                <p>
+                    Calculate notional hours, period allocations, and 13-period daily timetables (08:00–16:10). Automate complete lesson plan notes (LPN) for faculty.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎬</div>
+                <h3>Text-to-Video Educational Studio</h3>
+                <p>
+                    Transform curriculum lesson points into animated slide storyboards with instant, client-side virtual frame compilation into downloadable .webm video lectures.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Local-First & Air-Gapped Ready</h3>
+                <p>
+                    Runs completely offline with local SQLite database and local Gemma 4:26B LLM, or in hybrid mode with Google Gemini. No external cloud dependencies required.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Delivered Products Showcase Section -->
+    <section id="products" class="products-section">
+        <div class="products-container">
+            <div class="section-header">
+                <span class="section-eyebrow">Real Sample Outputs</span>
+                <h2 class="section-title">Delivered Learning Products</h2>
+                <p class="section-subtitle">
+                    Examine actual courseware artifacts generated by ETDP for the Occupational Certificate Electrician (671101000) and other accredited programs.
+                </p>
+            </div>
+
+            <div class="products-grid">
+                <!-- Brochure -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">4.77 MB</span>
+                    </div>
+                    <div class="product-category">System Overview</div>
+                    <h3 class="product-title">AI ETDP Learning Design System Brochure</h3>
+                    <p class="product-desc">Comprehensive brochure detailing the AI-driven ETDP occupational learning design framework, pedagogical scaffolding, and QCTO alignment.</p>
+                    <div class="product-actions">
+                        <a href="Products/Brocuhure AI ETDP Learning Design System.pdf" download class="btn-download">Download</a>
+                        <a href="Products/Brocuhure AI ETDP Learning Design System.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- System Architecture -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">1.19 MB</span>
+                    </div>
+                    <div class="product-category">System Architecture</div>
+                    <h3 class="product-title">ETD Artificial Intelligence System Architecture</h3>
+                    <p class="product-desc">Technical breakdown of the ETD artificial intelligence engine powered by Google Gemini and Gemma 4:26B.</p>
+                    <div class="product-actions">
+                        <a href="Products/ETD Artifical Intelligence System.pdf" download class="btn-download">Download</a>
+                        <a href="Products/ETD Artifical Intelligence System.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- Orgvue Demonstration Video -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-mp4">MP4 Video</span>
+                        <span class="product-size">12.7 MB</span>
+                    </div>
+                    <div class="product-category">Demonstration</div>
+                    <h3 class="product-title">Orgvue System Demonstration Video</h3>
+                    <p class="product-desc">Full walkthrough video showing automated curriculum design, organizational structure, and learning flow alignment.</p>
+                    <div class="product-actions">
+                        <a href="Products/Orgvue.mp4" download class="btn-download">Download Video</a>
+                        <a href="Products/Orgvue.mp4" target="_blank" class="btn-preview">Play Video</a>
+                    </div>
+                </div>
+
+                <!-- Complete Learner Guide -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">2.08 MB</span>
+                    </div>
+                    <div class="product-category">Learning Materials</div>
+                    <h3 class="product-title">7. Complete Learner Guide (Full Qualification)</h3>
+                    <p class="product-desc">Publication-ready textbook and instructional guide complete with outcomes, topic chapters, illustrated guides, and study exercises.</p>
+                    <div class="product-actions">
+                        <a href="Products/7-LearnerGuide_91761_Full_20260529_02.pdf" download class="btn-download">Download</a>
+                        <a href="Products/7-LearnerGuide_91761_Full_20260529_02.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- Summative Assessment -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">563 KB</span>
+                    </div>
+                    <div class="product-category">Assessments</div>
+                    <h3 class="product-title">8. Summative Assessment & Assessor Memorandum</h3>
+                    <p class="product-desc">Formal summative examination paper and matching assessor answer key covering Knowledge Modules and assessment criteria.</p>
+                    <div class="product-actions">
+                        <a href="Products/8-Summative_Assesssnent_nd-Memorandum.pdf" download class="btn-download">Download</a>
+                        <a href="Products/8-Summative_Assesssnent_nd-Memorandum.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- Student Workbook -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">333 KB</span>
+                    </div>
+                    <div class="product-category">Learning Materials</div>
+                    <h3 class="product-title">10. Student Workbook: Criteria Focus</h3>
+                    <p class="product-desc">Applied student activity workbook focused on individual assessment criteria, formative tasks, and practical assignments.</p>
+                    <div class="product-actions">
+                        <a href="Products/10-Workbook_AssessmentCriteria_KM-01-KT01_20260529.pdf" download class="btn-download">Download</a>
+                        <a href="Products/10-Workbook_AssessmentCriteria_KM-01-KT01_20260529.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- Presentation Slides -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pptx">PPTX</span>
+                        <span class="product-size">201 KB</span>
+                    </div>
+                    <div class="product-category">Classroom Teaching</div>
+                    <h3 class="product-title">12. Classroom Slide Deck: Workplace Safety</h3>
+                    <p class="product-desc">Ready-to-teach PowerPoint presentation slides covering OHSA safety legislation and practical regulations in electrical work.</p>
+                    <div class="product-actions">
+                        <a href="Products/12-KT0201_Legislation andr egulations for workplace safety within electricity -Example.pptx" download class="btn-download">Download PPTX</a>
+                    </div>
+                </div>
+
+                <!-- Alignment Matrix -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">848 KB</span>
+                    </div>
+                    <div class="product-category">Curriculum Planning</div>
+                    <h3 class="product-title">2. Electrician Alignment Matrix</h3>
+                    <p class="product-desc">Formal matrix mapping curriculum modules, subject chapters, assessment criteria, and NQF credits for Electrician (671101000).</p>
+                    <div class="product-actions">
+                        <a href="Products/2-Electrician Alignment Matrix.pdf" download class="btn-download">Download</a>
+                        <a href="Products/2-Electrician Alignment Matrix.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- Learning Schedule -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-xlsx">XLSX</span>
+                        <span class="product-size">43.8 KB</span>
+                    </div>
+                    <div class="product-category">Timetabling</div>
+                    <h3 class="product-title">5. Learning Schedule & Lesson Plans</h3>
+                    <p class="product-desc">Timetable spreadsheet across 13 daily periods (08:00–16:10) with mapped LPN lesson plan modules for institutional rollout.</p>
+                    <div class="product-actions">
+                        <a href="Products/5-Leaning Schedule and Lesson Plans 671101000 Occupational Certificate Qualification Electrician.xlsx" download class="btn-download">Download XLSX</a>
+                    </div>
+                </div>
+
+                <!-- Project Rollout Plan -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-xlsx">XLSX</span>
+                        <span class="product-size">92.3 KB</span>
+                    </div>
+                    <div class="product-category">Curriculum Planning</div>
+                    <h3 class="product-title">1. Qualification Project Rollout Plan</h3>
+                    <p class="product-desc">Gantt-aligned curriculum rollout timeline, period distributions, and institutional delivery schedule.</p>
+                    <div class="product-actions">
+                        <a href="Products/1-Project_Plan_Rollout_20260526_075308_5087130_7f40254de.xlsx" download class="btn-download">Download XLSX</a>
+                    </div>
+                </div>
+
+                <!-- Logbook Example -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">75.0 KB</span>
+                    </div>
+                    <div class="product-category">Workplace Experience</div>
+                    <h3 class="product-title">9. Workplace Experience Logbook Example</h3>
+                    <p class="product-desc">Structured workplace logbook tracking on-the-job evidence, mentor sign-offs, and practical competence criteria.</p>
+                    <div class="product-actions">
+                        <a href="Products/9-LOGBOOK EXAMPLE.pdf" download class="btn-download">Download</a>
+                        <a href="Products/9-LOGBOOK EXAMPLE.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+
+                <!-- Curriculum Flow Diagram -->
+                <div class="product-card">
+                    <div class="product-top">
+                        <span class="badge-type badge-pdf">PDF</span>
+                        <span class="product-size">7.19 MB</span>
+                    </div>
+                    <div class="product-category">Curriculum Planning</div>
+                    <h3 class="product-title">4. Curriculum Flow Diagram: Topics</h3>
+                    <p class="product-desc">Visual pedagogical topic sequence diagram showing knowledge progression from foundation to advanced mastery.</p>
+                    <div class="product-actions">
+                        <a href="Products/4-Flow-diagram_topics_km-01-kt01.pdf" download class="btn-download">Download</a>
+                        <a href="Products/4-Flow-diagram_topics_km-01-kt01.pdf" target="_blank" class="btn-preview">View PDF</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Run Server & Distribution Guide -->
+    <section id="server" class="section">
+        <div class="section-header">
+            <span class="section-eyebrow">Zero-Dependency Deployment</span>
+            <h2 class="section-title">Standalone Server & Distribution</h2>
+            <p class="section-subtitle">
+                ETDP hosts both its ASP.NET Core API and React single-page frontend from a unified server process on port 5299. No Node.js or Vite required at runtime.
+            </p>
+        </div>
+
+        <div class="guide-box">
+            <div class="guide-grid">
+                <div class="guide-step">
+                    <h4>1. Launch Standalone Server</h4>
+                    <p>Starts the unified server in Production mode and opens the application in your default browser:</p>
+                    <span class="code-block">launch_server.bat</span>
+                </div>
+
+                <div class="guide-step">
+                    <h4>2. Package for Distribution</h4>
+                    <p>Builds the web bundle and creates a self-contained portable package with an auto-run launcher in <code style="color: #93c5fd;">distribution\etdp_server\</code>:</p>
+                    <span class="code-block">publish_distribution.bat</span>
+                </div>
+
+                <div class="guide-step">
+                    <h4>3. Developer Mode</h4>
+                    <p>Launches backend and Vite frontend with hot-reload for active feature engineering:</p>
+                    <span class="code-block">launch_etdp.bat</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <ul class="footer-links">
+            <li><a href="http://localhost:5299/qualifications" target="_blank">Launch App</a></li>
+            <li><a href="#products">Delivered Products</a></li>
+            <li><a href="https://github.com/ONGALALI/etdp" target="_blank" rel="noreferrer">GitHub Repository</a></li>
+        </ul>
+        <p>© 2026 ETDP Project Team. AI-Powered Occupational Learning Design Platform.</p>
+        <p class="footer-disclaimer">
+            All curriculum outputs are designed for alignment with accredited occupational qualification standards. Full terms, verification guidelines, and institutional policies are detailed in the official ETDP Product Guide.
+        </p>
+    </footer>
+
+</body>
+</html>

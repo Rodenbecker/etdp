@@ -1,0 +1,85 @@
+# IDE and user-specific files
+.vs/
+.vscode/
+.gemini/
+.continue/
+*.user
+*.suo
+
+# .NET build output
+**/bin/
+**/obj/
+**/.codex_bin/
+**/.codex_obj/
+
+# Node and frontend dependencies
+**/node_modules/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python environments and cache
+**/__pycache__/
+**/.venv/
+**/.venv*/
+**/.pytest_cache/
+*.pyc
+
+# Local environment, secrets, and credentials
+.env
+.env.*
+*.env
+*.env.*
+google.env
+**/google.env
+logon codes.txt
+github-recovery-codes.txt
+parahrasekey/
+Security/keys/
+**/Security/keys/
+Settings.reg
+Google/
+**/Google/
+
+# Imports and large raw source files
+Imports/
+**/Imports/671208*
+*_dis.txt
+
+# Local databases and machine-specific data
+*.db
+*.db-*
+*.db.dsn
+*.db.old_*
+etdp.db*
+**/etdp.db*
+
+# Generated exports, caches, artifacts, and logs
+Logs/
+**/Logs/
+*.log
+Log1.txt
+artifacts/
+**/artifacts/
+Processed/
+**/Processed/
+Exports/
+**/Exports/
+runtime_logs/
+**/runtime_logs/
+distribution/
+**/distribution/
+
+# OS and Office temporary files
+Thumbs.db
+Desktop.ini
+~$*
+*.tmp
+_tmp*
+
+
+# Proprietary products and commercial documents (NEVER COMMIT)
+Products/
+**/Products/
+*.docx
